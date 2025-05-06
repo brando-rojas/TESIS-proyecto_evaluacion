@@ -1,0 +1,439 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard de Resultados de Evaluaciones{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4"><i class="fas fa-chart-pie"></i> Dashboard de Resultados</h2>
+    
+    <!-- Filtros -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtros de Resultados</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{{ url_for('ver_resultados') }}" class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label for="curso_id" class="form-label">Curso:</label>
+                    <select class="form-select" id="curso_id" name="curso_id">
+                        <option value="">Todos los cursos</option>
+                        {% for curso in cursos %}
+                        <option value="{{ curso.id }}" {% if filtro_curso_id == curso.id %}selected{% endif %}>
+                            {{ curso.codigo }} - {{ curso.nombre }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label for="examen_id" class="form-label">Examen:</label>
+                    <select class="form-select" id="examen_id" name="examen_id">
+                        <option value="">Todos los exámenes</option>
+                        {% for examen in examenes %}
+                        <option value="{{ examen.id }}" 
+                                data-curso="{{ examen.curso_id }}"
+                                {% if filtro_examen_id == examen.id %}selected{% endif %}>
+                            {{ examen.titulo }} ({{ examen.curso_nombre }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tarjetas de Estadísticas -->
+    <div class="row mb-4">
+        <div class="col-sm-6 col-md-6 col-lg-3 mb-3">
+            <div class="card bg-primary text-white shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Total Evaluaciones</h5>
+                    <h2 class="display-4">{{ estadisticas.total_evaluaciones }}</h2>
+                    <p class="card-text small">Evaluaciones procesadas</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-md-6 col-lg-3 mb-3">
+            <div class="card bg-success text-white shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Promedio General</h5>
+                    {% if estadisticas.total_evaluaciones > 0 %}
+                        <h2 class="display-4">{{ estadisticas.promedio_general }}%</h2>
+                    {% else %}
+                        <h2 class="display-4">N/A</h2>
+                    {% endif %}
+                    <p class="card-text small">Rendimiento promedio</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-md-6 col-lg-3 mb-3">
+            <div class="card bg-info text-white shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Estudiantes Únicos</h5>
+                    <h2 class="display-4">{{ estadisticas.estudiantes_unicos }}</h2>
+                    <p class="card-text small">Estudiantes evaluados</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-md-6 col-lg-3 mb-3">
+            <div class="card bg-warning text-dark shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Exámenes Únicos</h5>
+                    <h2 class="display-4">{{ estadisticas.examenes_unicos }}</h2>
+                    <p class="card-text small">Exámenes con evaluaciones</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Rendimiento por Examen</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="examChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Distribución de Calificaciones</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="gradesChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Evaluaciones -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-list me-2"></i>Listado de Evaluaciones</h5>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="exportCSV">
+                <i class="fas fa-download me-1"></i> Exportar CSV
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">ID</th>
+                            <th scope="col">Alumno</th>
+                            <th scope="col">Examen</th>
+                            <th scope="col">Pregunta (resumen)</th>
+                            <th scope="col">Puntaje</th>
+                            <th scope="col">Fecha</th>
+                            <th scope="col" class="text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for evaluacion in evaluaciones %}
+                        <tr>
+                            <td>{{ evaluacion.id }}</td>
+                            <td>{{ evaluacion.entrega.alumno.nombre }}</td>
+                            <td>{{ evaluacion.entrega.pregunta.examen.titulo }}</td>
+                            <td title="{{ evaluacion.entrega.pregunta.enunciado }}">
+                                {{ evaluacion.entrega.pregunta.enunciado | truncate(40, True, '...') }}
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="me-2 score-text">{{ evaluacion.puntaje_obtenido }} / {{ evaluacion.entrega.pregunta.puntaje_total }}</span>
+
+                                    {% set porcentaje = 0 %}
+                                    {% if evaluacion.entrega.pregunta.puntaje_total > 0 %}
+                                        {% set porcentaje = ((evaluacion.puntaje_obtenido / evaluacion.entrega.pregunta.puntaje_total) * 100)|round %}
+                                    {% endif %}
+
+                                    <div class="progress flex-grow-1" style="height: 6px;">
+                                        <div
+                                            class="progress-bar
+                                                {% if porcentaje >= 81 %}bg-success
+                                                {% elif porcentaje >= 61 %}bg-primary
+                                                {% elif porcentaje >= 41 %}bg-info
+                                                {% elif porcentaje >= 21 %}bg-warning
+                                                {% else %}bg-danger{% endif %}"
+                                            role="progressbar"
+                                            style="width: {{ porcentaje }}%"
+                                            aria-valuenow="{{ porcentaje }}"
+                                            aria-valuemin="0"
+                                            aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ evaluacion.fecha_evaluacion.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td class="text-center">
+                                <a href="{{ url_for('ver_detalle_evaluacion', evaluacion_id=evaluacion.id) }}"
+                                   class="btn btn-sm btn-outline-primary"
+                                   title="Ver Detalles">
+                                    <i class="fas fa-eye"></i> <span class="d-none d-md-inline">Detalles</span>
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">No hay evaluaciones disponibles.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    .card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    .card-title {
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+    .display-4 {
+        font-size: 2.2rem;
+        font-weight: 300;
+    }
+    .card-text.small {
+        font-size: 0.8rem;
+        opacity: 0.8;
+    }
+     .table th {
+        font-weight: 600;
+    }
+    .progress {
+        border-radius: 5px;
+        background-color: #e9ecef;
+    }
+    .progress-bar {
+         transition: width 0.6s ease;
+    }
+    .card-header h5 i, .btn i {
+        margin-right: 0.35rem;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Filtro dinámico de exámenes según curso seleccionado
+    const cursoSelect = document.getElementById('curso_id');
+    const examenSelect = document.getElementById('examen_id');
+    
+    if (cursoSelect && examenSelect) {
+        cursoSelect.addEventListener('change', function() {
+            const cursoId = this.value;
+            
+            // Mostrar todos los exámenes si no hay curso seleccionado
+            if (!cursoId) {
+                Array.from(examenSelect.options).forEach(option => {
+                    option.style.display = '';
+                });
+                return;
+            }
+            
+            // Filtrar exámenes por curso
+            Array.from(examenSelect.options).forEach(option => {
+                if (option.value === '' || option.dataset.curso === cursoId) {
+                    option.style.display = '';
+                } else {
+                    option.style.display = 'none';
+                }
+            });
+            
+            // Si el examen seleccionado ya no está visible, seleccionar la opción vacía
+            if (examenSelect.selectedOptions[0].style.display === 'none') {
+                examenSelect.value = '';
+            }
+        });
+        
+        // Trigger inicial para configurar correctamente los filtros
+        cursoSelect.dispatchEvent(new Event('change'));
+    }
+
+    // --- DATOS PARA GRÁFICOS ---
+    // Datos para el gráfico de rendimiento por examen
+    const examLabels = [
+        {% for examen, porcentaje in estadisticas.rendimiento_examenes.items() %}
+            "{{ examen }}",
+        {% endfor %}
+    ];
+    
+    const examScores = [
+        {% for examen, porcentaje in estadisticas.rendimiento_examenes.items() %}
+            {{ "%.1f"|format(porcentaje) }},
+        {% endfor %}
+    ];
+    
+    // Datos para el gráfico de distribución de calificaciones
+    const gradeLabels = ['0-20%', '21-40%', '41-60%', '61-80%', '81-100%'];
+    const gradeDistribution = [
+        {% for count in estadisticas.distribuciones %}
+            {{ count }},
+        {% endfor %}
+    ];
+
+    // --- CREACIÓN DE GRÁFICOS ---
+    const examChartCtx = document.getElementById('examChart');
+    if (examChartCtx && examLabels.length > 0) {
+        new Chart(examChartCtx, {
+            type: 'bar',
+            data: {
+                labels: examLabels,
+                datasets: [{
+                    label: 'Rendimiento Promedio',
+                    data: examScores,
+                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: { label: context => `${context.dataset.label}: ${context.raw}%` }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: { callback: value => value + '%' }
+                    }
+                }
+            }
+        });
+    } else if (examChartCtx) {
+        examChartCtx.parentNode.innerHTML = '<p class="text-center text-muted mt-3">No hay datos suficientes para mostrar el gráfico de rendimiento.</p>';
+    }
+
+    const gradesChartCtx = document.getElementById('gradesChart');
+    const totalGrades = gradeDistribution.reduce((a, b) => a + b, 0);
+    if (gradesChartCtx && totalGrades > 0) {
+        new Chart(gradesChartCtx, {
+            type: 'doughnut',
+            data: {
+                labels: gradeLabels,
+                datasets: [{
+                    label: 'Nº Evaluaciones',
+                    data: gradeDistribution,
+                    backgroundColor: [
+                        'rgba(220, 53, 69, 0.7)', // Danger
+                        'rgba(255, 193, 7, 0.7)', // Warning
+                        'rgba(13, 202, 240, 0.7)', // Info
+                        'rgba(13, 110, 253, 0.7)',// Primary
+                        'rgba(25, 135, 84, 0.7)'  // Success
+                    ],
+                    borderColor: [
+                        'rgb(220, 53, 69)',
+                        'rgb(255, 193, 7)',
+                        'rgb(13, 202, 240)',
+                        'rgb(13, 110, 253)',
+                        'rgb(25, 135, 84)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right' },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.raw;
+                                const percentage = totalGrades > 0 ? (value / totalGrades * 100).toFixed(1) + '%' : '0%';
+                                return `${label}: ${value} (${percentage})`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+     } else if (gradesChartCtx) {
+        gradesChartCtx.parentNode.innerHTML = '<p class="text-center text-muted mt-3">No hay datos suficientes para mostrar el gráfico de distribución.</p>';
+    }
+
+    // --- EXPORTAR A CSV ---
+    const exportButton = document.getElementById('exportCSV');
+    if (exportButton) {
+        exportButton.addEventListener('click', function() {
+            const table = document.querySelector('table');
+            if (!table) return;
+            const rows = table.querySelectorAll('tbody tr');
+
+            // Comprobar si hay datos válidos para exportar
+            if (rows.length === 0 || (rows.length === 1 && rows[0].cells.length <= 1 && rows[0].textContent.includes('No hay evaluaciones'))) {
+                alert('No hay datos en la tabla para exportar.');
+                return;
+            }
+
+            // Cabeceras (excluyendo la última columna - Acciones)
+            const headers = Array.from(table.querySelectorAll('thead th'))
+                                .slice(0, -1)
+                                .map(th => `"${th.textContent.trim().replace(/"/g, '""')}"`);
+
+            let csvContent = headers.join(',') + '\n';
+
+            // Filas de datos
+            rows.forEach(row => {
+                if (row.cells.length > 1) {
+                    const rowData = Array.from(row.cells)
+                        .slice(0, -1)
+                        .map((cell, index) => {
+                            let text = '';
+                            if (index === 4) {
+                                const scoreElement = cell.querySelector('span.score-text');
+                                text = scoreElement ? scoreElement.textContent.trim() : '';
+                            } else {
+                                text = cell.textContent.trim();
+                            }
+                            return `"${text.replace(/"/g, '""')}"`;
+                        });
+                    csvContent += rowData.join(',') + '\n';
+                }
+            });
+
+            // Crear blob y descargar
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const timestamp = new Date().toISOString().split('T')[0];
+            link.setAttribute('href', url);
+            link.setAttribute('download', `evaluaciones_${timestamp}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        });
+    }
+});
+</script>
+{% endblock %}

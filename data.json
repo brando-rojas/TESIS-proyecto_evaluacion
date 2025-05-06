@@ -1,0 +1,187 @@
+{
+  "cursos": [
+    {
+      "id": 1,
+      "nombre": "Fundamentos de Programacion",
+      "codigo": "1INF01"
+    }
+  ],
+  "ciclos_academicos": [
+    {
+      "id": 1,
+      "nombre": "2024-2"
+    }
+  ],
+  "ofertas_de_curso": [
+    {
+      "id": 1,
+      "curso_id": 1,
+      "ciclo_academico_id": 1
+    }
+  ],
+  "horarios": [
+    {
+      "id": 1,
+      "oferta_de_curso_id": 1,
+      "nombre": "H0682"
+    }
+  ],
+  "docentes": [
+    {
+      "id": 1,
+      "nombre": "David Allasi",
+      "email": "dallasi@pucp.edu.pe",
+      "contrasena": "pbkdf2:sha256:260000$uazApAp1xw1h61aM$36f698723c5dbbe92e9e28b5b16d4dbd677966118c728fe7e3b67d168bf6c06c",
+      "rol": "docente"
+    }
+  ],
+  "alumnos": [
+    {
+      "id": 2,
+      "nombre": "Ana Estudiante",
+      "email": "ana@ejemplo.com",
+      "contrasena": "pbkdf2:sha256:260000$ndagZWTiwtBkOQBe$e92d40ea6ded29af1b8e6fadf3e686bb701d6fab47dc77ca15c5763ed1afd7f5",
+      "rol": "alumno"
+    },
+    {
+      "id": 3,
+      "nombre": "Juan Estudiante",
+      "email": "juan@ejemplo.com",
+      "contrasena": "pbkdf2:sha256:260000$XThcV6A3pvnhdIlD$b60a1db4af6193efb998051bdddd567774e2e3cc2cd335ea2e582a71137ed2ca",
+      "rol": "alumno"
+    }
+  ],
+  "usuario_horario": [
+    {
+      "usuario_id": 1,
+      "horario_id": 1
+    },
+    {
+      "usuario_id": 2,
+      "horario_id": 1
+    },
+    {
+      "usuario_id": 3,
+      "horario_id": 1
+    }
+  ],
+  "examenes": [
+    {
+      "id": 1,
+      "titulo": "Examen de Fundamentos de Programación",
+      "descripcion": "Evaluación sobre estructuras de control en C.",
+      "fecha_publicacion": "2024-10-25T12:00:00",
+      "fecha_cierre": "2024-11-01T12:00:00",
+      "horario_id": 1,
+      "herramientas_analisis": ""
+    }
+  ],
+  "preguntas": [
+    {
+      "id": 1,
+      "enunciado": "Pregunta 2A (7 puntos) [propuesta por Luis Muroya]\n\nEn el campo de las matemáticas, los números naturales tienen muchas propiedades interesantes. Durante años, los matemáticos han ido identificando grupos de números que comparten ciertas características.\n\nEn este contexto, los números de Sastry son aquellos que siguen la siguiente sucesión:\n183, 328, 528, 715, 6099, 13224, 40495, 106755, 453288, 2066115, 2975208, 22145328, 28027683, ...\nSe considera que un número natural N pertenece a este grupo si es que su concatenación con el siguiente número natural N+1 resulta un cuadrado perfecto. Por ejemplo: el 183 se considera un número de Sastry debido a que su concatenación con 184 da como resultado el 183184, el cual es un cuadrado perfecto (4282^2).\nUn número cuadrado perfecto es aquel que se obtiene al elevar al cuadrado cualquier número natural. Por ejemplo, son cuadrados perfectos. Para determinar si un número N es un cuadrado perfecto, se debe calcular su raíz cuadrada (RC). El número será un cuadrado perfecto si al elevar al cuadrado la parte entera de RC, se obtiene N. Por ejemplo: 183184 es un cuadrado perfecto porque su raíz cuadrada es 428.00 y 428^2 = 183184. Por el contrario, 20 no es un cuadrado perfecto porque su raíz cuadrada es 4.47 y 4^2 != 20.\n\nOtro grupo de números conocidos son los números apocalípticos. Se clasifica un número natural N como tal si es que contiene el 666 como parte del mismo. Algunos ejemplos de números apocalípticos son:\n666, 1666, 6661, 2666, 6662, 3666, 6663, 4666, 6664, 5666, 6665, 6666, 6660, 7666, ...\nSe pide que implemente un programa en el lenguaje de programación C que reciba del usuario 3 números naturales diferentes y que estos tengan como máximo 4 dígitos, los valide, los ordene de manera descendente y determine si pertenecen a alguno de los dos grupos numéricos anteriormente descritos. Para ello, deberá solicitar y leer del usuario los 3 números a evaluar y validarlos. Si durante la validación detecta algún error, deberá mostrar el mensaje correspondiente (ver casos de prueba) y terminar su ejecución. En caso pase la validación exitosamente, deberá mostrar al usuario cada uno de los números ingresados (en orden descendente) indicando para cada uno si es de Sastry o no; y si es Apocalíptico o no. Para ello, deberá imprimir un 1 en caso el número pertenezca al conjunto; o un 0 en caso contrario. En su solución deberá hacer uso del paradigma de programación modular e implementar aparte del principal los siguientes subprogramas:\n\n1. Un subprograma o módulo que reciba 3 números y valide que todos sean distintos y que todos sean números naturales de máximo 4 dígitos. En caso todos los datos sean correctos, deberá devolver 1. Si alguno de los datos es incorrecto, deberá devolver 0. Este módulo no deberá imprimir ningún tipo de mensaje. Este subprograma tampoco podrá llamar a otro.\n\n2. Un subprograma o módulo que reciba un número natural y retorne la cantidad de dígitos que posee. La cantidad de dígitos de un número (N) puede calcularse usando la fórmula: Cantidad_Digitos(N) = log10(N) + 1. Ver nota 2.\n\n3. Un subprograma o módulo que reciba un número natural y devuelva dos indicadores cuyos detalles se explican a continuación. El primero de ellos indicará si el número pertenece al conjunto de Sastry: tomará el valor de 1 si pertenece a dicho conjunto; 0 en caso contrario. El segundo de ellos indicará si el número es Apocalíptico: tomará el valor de 1 si pertenece a dicho conjunto; 0 en caso contrario. Este módulo deberá llamar a otro de los definidos anteriormente.\n\n4. No deberá implementar otros módulos diferentes a los indicados previamente.\n\nPara su desarrollo no puede utilizar subprogramas o módulos adicionales (a excepción del principal) o que no cumplan las especificaciones mencionadas en el listado anterior. Debe hacer uso de estructuras selectivas anidadas en este programa. No puede emplear estructuras iterativas para la resolución. Asimismo, deberá usar constantes en su programa. Los mensajes a mostrar deben coincidir con los casos de prueba.\nNota 1: la parte entera de un número N puede obtenerse en C usando la función floor(N), cuyo prototipo puede encontrarse en el archivo de cabecera math.h. Tenga en cuenta que dicha función devuelve un tipo de dato double.\nNota 2: En C, el logaritmo en base 10 de un número N puede calcularse usando log10(N), cuyo prototipo puede encontrarse en el archivo de cabecera math.h. Tenga en cuenta que dicha función devuelve un tipo de dato double.",
+      "puntaje_total": 7.0,
+      "lenguaje_programacion": "C",
+      "solucion_modelo": "#include <stdio.h>\n#include <math.h>\n#define MAX_N 9999\n#define APOCALIPTICO 666\n\nint cantidadDigitos(int numero);\nint ValidarDatos(int num1, int num2, int num3);\nvoid EvaluarSastryApocaliptico(int numero, int *sastry, int *apocal);\n\nint main(){\n\tint num1, num2, num3, esValido, numMayor, numIntermedio, numMenor, sastry, apocaliptico;\n\tprintf(\"Ingrese el num. natural 1: \");\n\tscanf(\" %d\", &num1);\n\tprintf(\"Ingrese el num. natural 2: \");\n\tscanf(\" %d\", &num2);\n\tprintf(\"Ingrese el num. natural 3: \");\n\tscanf(\" %d\", &num3);\n\tesValido = ValidarDatos(num1, num2, num3);\n\tif (esValido==1){\n\t\t// Identificar el natural mayor, intermedio y menor de los 3 ingresados.\n\t\tif (num1>=num2 && num1>=num3)\n\t\t\tnumMayor = num1;\n\t\telse if (num2>=num1 && num2>=num3)\n\t\t\tnumMayor = num2;\n\t\telse\n\t\t\tnumMayor = num3;\n\t\tif (num1<=num2 && num1<=num3)\n\t\t\tnumMenor = num1;\n\t\telse if (num2<=num1 && num2<=num3)\n\t\t\tnumMenor = num2;\n\t\telse\n\t\t\tnumMenor = num3;\n\t\tnumIntermedio = (num1 + num2 + num3) - (numMayor + numMenor);\n\t\t// Evaluar las condiciones de Sastry y Apocal. y mostrarlas en orden descendente\n\t\tEvaluarSastryApocaliptico(numMayor, &sastry, &apocaliptico);\n\t\tprintf(\"Numero mayor: %d.\\n- Es Sastry: %d\\n- Es Apocaliptico: %d\\n\", numMayor, sastry, apocaliptico);\n\t\tEvaluarSastryApocaliptico(numIntermedio, &sastry, &apocaliptico);\n\t\tprintf(\"Numero intermedio: %d.\\n- Es Sastry: %d\\n- Es Apocaliptico: %d\\n\", numIntermedio, sastry, apocaliptico);\n\t\tEvaluarSastryApocaliptico(numMenor, &sastry, &apocaliptico);\n\t\tprintf(\"Numero menor: %d.\\n- Es Sastry: %d\\n- Es Apocaliptico: %d\\n\", numMenor, sastry, apocaliptico);\n\t}\n\telse {\n\t\tprintf(\"Por lo menos uno de los datos de entrada no es correcto.\");\n\t}\n\treturn 0;\n}\n\nint ValidarDatos(int num1, int num2, int num3){\n\tint condicionDiferentes = (num1!=num2) && (num1!=num3) && (num2!=num3);\n\tint condicionRangoNumerico = num1>=0 && num2>=0 && num3>=0 && num1<=MAX_N && num2<=MAX_N && num3<=MAX_N;\n\tif (condicionDiferentes && condicionRangoNumerico)\n\t\treturn 1;\n\telse\n\t\treturn 0;\n}\n\nint cantidadDigitos(int numero){\n\treturn (int)log10(numero) + 1;\n}\n\nvoid EvaluarSastryApocaliptico(int numero, int *sastry, int *apocal){\n\t/***********************CONJUNTO DE SASTRY***********************************\n\tSe calcula el resultado de unir el natural (N) con su sucesor (N+1).\n\tLuego, se valida si el resultado anterior es cuadrado perfecto.\n\t*/\n\tint cantDigitosSucesor = cantidadDigitos(numero + 1);\n\tint numConcatenado = numero * pow(10, cantDigitosSucesor) + (numero + 1);\n\tint raizEntera = floor(sqrt(numConcatenado));\n\tif (raizEntera * raizEntera == numConcatenado)\n\t\t*sastry = 1;\n\telse\n\t\t*sastry = 0;\n\t/***********************CONJUNTO DE APOCALIP.***********************************\n\tSi el natural tiene menos de 3 cifras, no puede pertenecer a este conjunto.\n\tSi tiene 3 o 4 cifras, se evalua si las 3 primeras o las 3 finales forman un 666\n\t*/\n\tint cantDigitosNum = cantidadDigitos(numero);\n\tif (cantDigitosNum < 3)\n\t\t*apocal = 0;\n\telse {\n\t\tint ultimos3Digitos = numero % 1000;\n\t\tint primeros3Digitos = (int)floor(numero / 10);\n\t\tif (primeros3Digitos == APOCALIPTICO || ultimos3Digitos == APOCALIPTICO)\n\t\t\t*apocal = 1;\n\t\telse\n\t\t\t*apocal = 0;\n\t}\n}",
+      "examen_id": 1
+    }
+  ],
+  "casos_de_prueba": [
+    {
+      "id": 1,
+      "entrada": "-1234\n123\n32",
+      "salida_esperada": "Por lo menos uno de los datos de entrada no es correcto.",
+      "puntos": 0.5,
+      "pregunta_id": 1
+    },
+    {
+      "id": 2,
+      "entrada": "123\n123\n32",
+      "salida_esperada": "Por lo menos uno de los datos de entrada no es correcto.",
+      "puntos": 0.5,
+      "pregunta_id": 1
+    },
+    {
+      "id": 3,
+      "entrada": "123456\n1234\n321",
+      "salida_esperada": "Por lo menos uno de los datos de entrada no es correcto.",
+      "puntos": 1,
+      "pregunta_id": 1
+    },
+    {
+      "id": 4,
+      "entrada": "183\n1666\n284",
+      "salida_esperada": "Numero mayor: 1666.\n- Es Sastry: 0\n- Es Apocaliptico:1\nNumero intermedio: 284.\n- Es Sastry: 0\n- Es Apocaliptico:0\nNumero menor: 183.\n- Es Sastry: 1\n- Es Apocaliptico:0",
+      "puntos": 2.5,
+      "pregunta_id": 1
+    },
+    {
+      "id": 5,
+      "entrada": "6665\n62\n528",
+      "salida_esperada": "Numero mayor: 6665.\n- Es Sastry: 0\n- Es Apocaliptico:1\nNumero intermedio: 528.\n- Es Sastry: 1\n- Es Apocaliptico:0\nNumero menor: 62.\n- Es Sastry: 0\n- Es Apocaliptico:0",
+      "puntos": 2.5,
+      "pregunta_id": 1
+    }
+  ],
+  "entregas": [],
+  "evaluaciones": [],
+  "resultados_de_evaluacion": [],
+  "herramientas_analisis": [
+    {
+      "id": 1,
+      "nombre": "CodeMetric",
+      "descripcion": "Herramienta para analizar métricas del código.",
+      "tipo": "metrica"
+    },
+    {
+      "id": 2,
+      "nombre": "SimChecker",
+      "descripcion": "Herramienta para detectar similitudes entre códigos.",
+      "tipo": "similitud"
+    },
+    {
+      "id": 3,
+      "nombre": "FormatInspector",
+      "descripcion": "Herramienta para evaluar el estilo y formato del código.",
+      "tipo": "formato"
+    }
+  ],
+  "analisis_formato": [
+    {
+      "id": 1,
+      "evaluacion_id": 1,
+      "herramienta_analisis_id": 3,
+      "comentarios_generales": "Formato aceptable, pero con detalles a corregir."
+    }
+  ],
+  "reglas_formato": [
+    {
+      "id": 1,
+      "analisis_formato_id": 1,
+      "nombre_regla": "Indentación consistente",
+      "descripcion": "El código debe usar una indentación consistente en todos los bloques.",
+      "cumple": true
+    },
+    {
+      "id": 2,
+      "analisis_formato_id": 1,
+      "nombre_regla": "Líneas no deben exceder 80 caracteres",
+      "descripcion": "Las líneas del código no deben tener más de 80 caracteres.",
+      "cumple": false
+    },
+    {
+      "id": 3,
+      "analisis_formato_id": 1,
+      "nombre_regla": "Espacios después de comas",
+      "descripcion": "Debe haber un espacio después de cada coma.",
+      "cumple": true
+    },
+    {
+      "id": 4,
+      "analisis_formato_id": 1,
+      "nombre_regla": "Uso de llaves en bloques",
+      "descripcion": "Se deben usar llaves incluso para bloques de una sola línea.",
+      "cumple": true
+    }
+  ]
+}

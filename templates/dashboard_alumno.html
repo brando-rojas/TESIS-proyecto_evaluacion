@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Alumno{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Encabezado con información del alumno -->
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <h1 class="display-5 fw-bold"><i class="fas fa-user-graduate text-primary me-2"></i> Bienvenido, {{ current_user.nombre }}</h1>
+            <p class="lead text-muted">Panel de gestión para tus cursos y evaluaciones</p>
+        </div>
+        <div class="col-lg-4 d-flex align-items-center justify-content-lg-end mt-3 mt-lg-0">
+            <div class="dropdown">
+                <button class="btn btn-outline-primary dropdown-toggle" type="button" id="quickActionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-bolt me-1"></i> Acciones rápidas
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="quickActionsDropdown">
+                    <li><a class="dropdown-item" href="{{ url_for('ver_examenes') }}"><i class="fas fa-list-alt me-2 text-primary"></i> Ver exámenes</a></li>
+                    <li><a class="dropdown-item" href="{{ url_for('mis_entregas') }}"><i class="fas fa-check-circle me-2 text-secondary"></i> Mis entregas</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="{{ url_for('mis_evaluaciones') }}"><i class="fas fa-chart-bar me-2 text-success"></i> Ver resultados</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acciones principales del alumno -->
+    <div class="row mb-4">
+        <!-- Ver Exámenes Disponibles -->
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center p-4">
+                    <div class="icon-circle bg-primary-light mx-auto mb-4">
+                        <i class="fas fa-list-alt fa-3x text-primary"></i>
+                    </div>
+                    <h4 class="card-title">Exámenes Disponibles</h4>
+                    <p class="card-text text-muted">Consulta y responde los exámenes asignados a tus cursos.</p>
+                    <a href="{{ url_for('ver_examenes') }}" class="btn btn-primary btn-lg px-4">
+                        <i class="fas fa-eye me-2"></i> Ver Exámenes
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mis Entregas -->
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center p-4">
+                    <div class="icon-circle bg-secondary-light mx-auto mb-4">
+                        <i class="fas fa-check-circle fa-3x text-secondary"></i>
+                    </div>
+                    <h4 class="card-title">Mis Entregas</h4>
+                    <p class="card-text text-muted">Revisa el estado y los resultados de tus entregas de exámenes.</p>
+                    <a href="{{ url_for('mis_entregas') }}" class="btn btn-secondary btn-lg px-4">
+                        <i class="fas fa-search me-2"></i> Revisar Entregas
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ver Resultados -->
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center p-4">
+                    <div class="icon-circle bg-success-light mx-auto mb-4">
+                        <i class="fas fa-chart-bar fa-3x text-success"></i>
+                    </div>
+                    <h4 class="card-title">Resultados de Evaluaciones</h4>
+                    <p class="card-text text-muted">Consulta tus puntajes y feedback de las evaluaciones realizadas.</p>
+                    <a href="{{ url_for('mis_evaluaciones') }}" class="btn btn-success btn-lg px-4">
+                        <i class="fas fa-chart-pie me-2"></i> Ver Resultados
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sección de Próximos Exámenes -->
+    <div class="row">
+        <!-- Próximos exámenes a vencer -->
+        <div class="col-lg-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-calendar-alt text-primary me-2"></i> Próximos Exámenes</h5>
+                    <a href="{{ url_for('ver_examenes') }}" class="btn btn-sm btn-outline-primary">Ver todos</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for examen in examenes|selectattr('fecha_cierre', 'gt', now)|sort(attribute='fecha_cierre') %}
+                            {% if loop.index <= 5 %}
+                            <a href="{{ url_for('ver_examen', examen_id=examen.id) }}" class="list-group-item list-group-item-action">
+                                <div class="d-flex w-100 justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">{{ examen.titulo }}</h6>
+                                        <small class="text-muted">
+                                            <i class="fas fa-book me-1"></i> {{ examen.horario.oferta_de_curso.curso.nombre }} 
+                                            <i class="fas fa-question-circle ms-2 me-1"></i> {{ examen.preguntas|length }} preguntas
+                                        </small>
+                                    </div>
+                                    <span class="badge rounded-pill 
+                                        {% set dias_restantes = (examen.fecha_cierre - now).days %}
+                                        {% if dias_restantes <= 1 %}bg-danger
+                                        {% elif dias_restantes <= 3 %}bg-warning text-dark
+                                        {% else %}bg-primary{% endif %}">
+                                        {% if dias_restantes == 0 %}
+                                            Hoy
+                                        {% elif dias_restantes == 1 %}
+                                            Mañana
+                                        {% else %}
+                                            {{ dias_restantes }} días
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            </a>
+                            {% endif %}
+                        {% else %}
+                            <div class="list-group-item text-center text-muted py-4">
+                                <i class="fas fa-calendar-check fa-2x mb-2"></i>
+                                <p class="mb-0">No hay exámenes pendientes</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Últimas entregas -->
+        <div class="col-lg-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-history text-primary me-2"></i> Mis Últimas Entregas</h5>
+                    <a href="{{ url_for('mis_entregas') }}" class="btn btn-sm btn-outline-primary">Ver todas</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% if entregas_recientes %}
+                            {% for entrega in entregas_recientes %}
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{{ entrega.pregunta.enunciado|truncate(40) }}</h6>
+                                            <small class="text-muted">
+                                                <i class="fas fa-book me-1"></i> {{ entrega.pregunta.examen.titulo }}
+                                                {% if entrega.evaluacion %}
+                                                <i class="fas fa-check-circle ms-2 me-1 text-success"></i> Evaluado
+                                                {% else %}
+                                                <i class="fas fa-clock ms-2 me-1 text-warning"></i> Pendiente
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                        <small class="text-muted">{{ entrega.fecha_entrega.strftime('%d/%m/%Y %H:%M') }}</small>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="list-group-item text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-2x mb-2"></i>
+                                <p class="mb-0">No has realizado entregas aún</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .icon-circle {
+        height: 60px;
+        width: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .bg-primary-light {
+        background-color: rgba(13, 110, 253, 0.2);
+    }
+    
+    .bg-secondary-light {
+        background-color: rgba(108, 117, 125, 0.2);
+    }
+    
+    .bg-success-light {
+        background-color: rgba(25, 135, 84, 0.2);
+    }
+    
+    .bg-info-light {
+        background-color: rgba(13, 202, 240, 0.2);
+    }
+    
+    .bg-warning-light {
+        background-color: rgba(255, 193, 7, 0.2);
+    }
+    
+    .card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        border-radius: 0.75rem;
+    }
+    
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1) !important;
+    }
+    
+    .card-header {
+        border-top-left-radius: 0.75rem !important;
+        border-top-right-radius: 0.75rem !important;
+    }
+    
+    .display-6 {
+        font-size: 2rem;
+        font-weight: 300;
+    }
+    
+    .list-group-item {
+        border-left: none;
+        border-right: none;
+        padding: 1rem 1.5rem;
+    }
+    
+    .btn-lg {
+        border-radius: 0.5rem;
+    }
+</style>
+{% endblock %}

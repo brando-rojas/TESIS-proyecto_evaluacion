@@ -1,0 +1,152 @@
+1. Asegúrate de que el Entorno Virtual está Activado
+.\venv\Scripts\Activate
+
+2. Establece la Variable de Entorno FLASK_APP
+set FLASK_APP=app.py
+
+3.
+
+docente = Usuario.query.filter_by(email="dallasi@pucp.edu.pe").first()
+alumno1 = Usuario.query.filter_by(email="ana@ejemplo.com").first()
+alumno2 = Usuario.query.filter_by(email="juan@ejemplo.com").first()
+
+docente.set_password("NuevaContrasenaDocente123")
+alumno1.set_password("NuevaContrasenaAlumnoAna456")
+alumno2.set_password("NuevaContrasenaAlumnoJuan789")
+
+4.
+
+your_project/
+│
+├── app.py
+├── config.py
+├── forms.py
+├── routes.py
+├── evaluator.py
+├── models.py
+├── requirements.txt
+├── migrations/
+│   └── ... (migraciones de Flask-Migrate)
+├── templates/
+│   ├── base.html
+│   ├── login.html
+│   ├── register.html
+│   ├── dashboard_docente.html
+│   ├── dashboard_alumno.html
+│   ├── crear_examen.html
+│   ├── gestionar_examenes.html
+│   ├── ver_examen.html
+│   ├── responder_pregunta.html
+│   ├── ver_resultado.html
+│   ├── mis_entregas.html
+│   └── ver_resultados_alumno.html
+├── static/
+│   ├── css/
+│   │   └── styles.css
+│   ├── js/
+│   │   └── scripts.js (opcional)
+│   └── images/
+│       └── ... (imágenes utilizadas)
+└── tests/
+    └── ... (archivos de pruebas)
+
+#include <stdio.h>
+#include <math.h>
+#include <string.h>
+#include <stdbool.h>
+
+#define MAX_DIGITOS 4
+
+// Función para contar los dígitos de un número
+int contar_digitos(int N) {
+    if (N == 0)
+        return 1;
+    return (int)log10(N) + 1;
+}
+
+// Función para validar los tres números
+bool validar_numeros(int a, int b, int c) {
+    // Verificar que sean naturales
+    if (a <= 0 || b <= 0 || c <= 0)
+        return false;
+    // Verificar que sean distintos
+    if (a == b || a == c || b == c)
+        return false;
+    // Verificar que tengan máximo 4 dígitos
+    if (contar_digitos(a) > MAX_DIGITOS || contar_digitos(b) > MAX_DIGITOS || contar_digitos(c) > MAX_DIGITOS)
+        return false;
+    return true;
+}
+
+// Función para verificar si un número es Sastry
+int es_sastry(int N) {
+    // Concatenar N y N+1
+    int siguiente = N + 1;
+    char concatenado_str[20];
+    sprintf(concatenado_str, "%d%d", N, siguiente);
+    long concatenado = atol(concatenado_str);
+    
+    // Calcular la raíz cuadrada
+    double raiz = sqrt((double)concatenado);
+    long parte_entera = (long)floor(raiz);
+    
+    if (parte_entera * parte_entera == concatenado)
+        return 1;
+    else
+        return 0;
+}
+
+// Función para verificar si un número es Apocalíptico
+int es_apocaliptico(int N) {
+    char num_str[10];
+    sprintf(num_str, "%d", N);
+    if (strstr(num_str, "666") != NULL)
+        return 1;
+    else
+        return 0;
+}
+
+int main() {
+    int num1, num2, num3;
+    
+    printf("Ingrese el primer número: ");
+    scanf("%d", &num1);
+    printf("Ingrese el segundo número: ");
+    scanf("%d", &num2);
+    printf("Ingrese el tercer número: ");
+    scanf("%d", &num3);
+    
+    // Validar los números
+    bool validacion = validar_numeros(num1, num2, num3);
+    if (!validacion) {
+        printf("Error: Los números deben ser naturales, distintos y tener como máximo 4 dígitos cada uno.\n");
+        return 0;
+    }
+    
+    // Ordenar los números de manera descendente
+    int numeros[3] = {num1, num2, num3};
+    // Ordenamiento simple
+    for(int i=0; i<3; i++) {
+        for(int j=i+1; j<3; j++) {
+            if(numeros[j] > numeros[i]) {
+                int temp = numeros[i];
+                numeros[i] = numeros[j];
+                numeros[j] = temp;
+            }
+        }
+    }
+    
+    printf("\nNúmeros ordenados de manera descendente: %d, %d, %d\n", numeros[0], numeros[1], numeros[2]);
+    
+    // Evaluar cada número
+    for(int i=0; i<3; i++) {
+        int actual = numeros[i];
+        int sastry = es_sastry(actual);
+        int apocaliptico = es_apocaliptico(actual);
+        printf("\nNúmero: %d\n", actual);
+        printf("Es de Sastry: %d\n", sastry);
+        printf("Es Apocalíptico: %d\n", apocaliptico);
+    }
+    
+    return 0;
+}

@@ -1,0 +1,443 @@
+{% extends "base.html" %}
+
+{% block title %}Mis Evaluaciones{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4"><i class="fas fa-chart-pie"></i> Mis Evaluaciones</h2>
+    
+    <!-- Filtros -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtrar Resultados</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{{ url_for('mis_evaluaciones') }}" class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label for="curso_id" class="form-label">Curso:</label>
+                    <select class="form-select" id="curso_id" name="curso_id">
+                        <option value="">Todos los cursos</option>
+                        {% for curso in cursos %}
+                        <option value="{{ curso.id }}" {% if filtro_curso_id == curso.id %}selected{% endif %}>
+                            {{ curso.codigo }} - {{ curso.nombre }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label for="examen_id" class="form-label">Examen:</label>
+                    <select class="form-select" id="examen_id" name="examen_id">
+                        <option value="">Todos los exámenes</option>
+                        {% for examen in examenes %}
+                        <option value="{{ examen.id }}" 
+                                data-curso="{{ examen.curso_id }}"
+                                {% if filtro_examen_id == examen.id %}selected{% endif %}>
+                            {{ examen.titulo }} ({{ examen.curso_nombre }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tarjetas de Estadísticas -->
+    <div class="row mb-4">
+        <div class="col-sm-6 col-md-6 col-lg-3 mb-3">
+            <div class="card bg-primary text-white shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Total Evaluaciones</h5>
+                    <h2 class="display-4">{{ estadisticas.total_evaluaciones }}</h2>
+                    <p class="card-text small">Evaluaciones realizadas</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-md-6 col-lg-3 mb-3">
+            <div class="card bg-success text-white shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Promedio General</h5>
+                    {% if estadisticas.total_evaluaciones > 0 %}
+                        <h2 class="display-4">{{ estadisticas.promedio_general }}%</h2>
+                    {% else %}
+                        <h2 class="display-4">N/A</h2>
+                    {% endif %}
+                    <p class="card-text small">Mi rendimiento promedio</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-md-6 col-lg-3 mb-3">
+            <div class="card bg-info text-white shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Exámenes Realizados</h5>
+                    <h2 class="display-4">{{ estadisticas.examenes_unicos }}</h2>
+                    <p class="card-text small">Exámenes con evaluaciones</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-md-6 col-lg-3 mb-3">
+            <div class="card bg-warning text-dark shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Tasa de Aprobación</h5>
+                    {% set aprobadas = estadisticas.distribuciones[3] + estadisticas.distribuciones[4] %}
+                    {% set total = estadisticas.distribuciones|sum %}
+                    {% if total > 0 %}
+                        {% set tasa_aprobacion = (aprobadas / total * 100)|round %}
+                        <h2 class="display-4">{{ tasa_aprobacion }}%</h2>
+                    {% else %}
+                        <h2 class="display-4">N/A</h2>
+                    {% endif %}
+                    <p class="card-text small">Evaluaciones con más de 60%</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Mi Rendimiento por Examen</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="examChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Distribución de Mis Calificaciones</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="gradesChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Evaluaciones -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-list me-2"></i>Listado de Evaluaciones</h5>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="exportCSV">
+                <i class="fas fa-download me-1"></i> Exportar CSV
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">ID</th>
+                            <th scope="col">Examen</th>
+                            <th scope="col">Pregunta (resumen)</th>
+                            <th scope="col">Puntaje</th>
+                            <th scope="col">Fecha Entrega</th>
+                            <th scope="col" class="text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for evaluacion in evaluaciones %}
+                        <tr>
+                            <td>{{ evaluacion.id }}</td>
+                            <td>{{ evaluacion.entrega.pregunta.examen.titulo }}</td>
+                            <td title="{{ evaluacion.entrega.pregunta.enunciado }}">
+                                {{ evaluacion.entrega.pregunta.enunciado | truncate(40, True, '...') }}
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="me-2 score-text">{{ evaluacion.puntaje_obtenido }} / {{ evaluacion.entrega.pregunta.puntaje_total }}</span>
+
+                                    {% set porcentaje = 0 %}
+                                    {% if evaluacion.entrega.pregunta.puntaje_total > 0 %}
+                                        {% set porcentaje = ((evaluacion.puntaje_obtenido / evaluacion.entrega.pregunta.puntaje_total) * 100)|round %}
+                                    {% endif %}
+
+                                    <div class="progress flex-grow-1" style="height: 6px;">
+                                        <div
+                                            class="progress-bar
+                                                {% if porcentaje >= 81 %}bg-success
+                                                {% elif porcentaje >= 61 %}bg-primary
+                                                {% elif porcentaje >= 41 %}bg-info
+                                                {% elif porcentaje >= 21 %}bg-warning
+                                                {% else %}bg-danger{% endif %}"
+                                            role="progressbar"
+                                            style="width: {{ porcentaje }}%"
+                                            aria-valuenow="{{ porcentaje }}"
+                                            aria-valuemin="0"
+                                            aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ evaluacion.entrega.fecha_entrega.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td class="text-center">
+                                <a href="{{ url_for('ver_resultado', entrega_id=evaluacion.entrega.id) }}"
+                                   class="btn btn-sm btn-outline-primary"
+                                   title="Ver Resultado">
+                                    <i class="fas fa-eye"></i> <span class="d-none d-md-inline">Ver Detalles</span>
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">No tienes evaluaciones disponibles.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    .card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    .card-title {
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+    .display-4 {
+        font-size: 2.2rem;
+        font-weight: 300;
+    }
+    .card-text.small {
+        font-size: 0.8rem;
+        opacity: 0.8;
+    }
+     .table th {
+        font-weight: 600;
+    }
+    .progress {
+        border-radius: 5px;
+        background-color: #e9ecef;
+    }
+    .progress-bar {
+         transition: width 0.6s ease;
+    }
+    .card-header h5 i, .btn i {
+        margin-right: 0.35rem;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("MisEvaluaciones Script: DOMContentLoaded");
+
+    const cursoSelect = document.getElementById('curso_id');
+    const examenSelect = document.getElementById('examen_id');
+    // Crucial: Get the filter value PASSED FROM THE BACKEND
+    const initialExamenIdFromServer = {{ filtro_examen_id|tojson }};
+    const initialCursoIdFromServer = {{ filtro_curso_id|tojson }}; // Also get curso filter
+
+    console.log(`MisEvaluaciones Script: Initial Server Filters -> Curso: ${initialCursoIdFromServer}, Examen: ${initialExamenIdFromServer}`);
+    console.log(`MisEvaluaciones Script: Initial Dropdown Values -> Curso: '${cursoSelect?.value}', Examen: '${examenSelect?.value}'`);
+
+    // Function to filter exam options based on selected course
+    function filterExamenes() {
+        if (!cursoSelect || !examenSelect) return;
+
+        const cursoId = cursoSelect.value;
+        const currentExamenValue = examenSelect.value; // Value before potential change
+        console.log(`MisEvaluaciones Script: filterExamenes running. Curso ID: '${cursoId}'. Current Exam Value: '${currentExamenValue}'`);
+
+        let needsReset = false;
+
+        // Hide/Show options
+        Array.from(examenSelect.options).forEach(option => {
+            const isRelevant = (option.value === '' || !cursoId || option.dataset.curso === cursoId);
+            option.style.display = isRelevant ? '' : 'none';
+            // Check if the current selection will become hidden
+            if (!isRelevant && option.value === currentExamenValue && currentExamenValue !== '') {
+                 console.log(`MisEvaluaciones Script: filterExamenes identified that current value ${currentExamenValue} will be hidden.`);
+                needsReset = true;
+            }
+        });
+
+        // If the selected option is now hidden, reset to "Todos"
+        // Check selectedIndex first as it reflects the browser's current state
+        const selectedOptionElement = examenSelect.options[examenSelect.selectedIndex];
+        if (selectedOptionElement && selectedOptionElement.style.display === 'none') {
+            console.log(`MisEvaluaciones Script: filterExamenes - Selected option at index ${examenSelect.selectedIndex} ('${selectedOptionElement.value}') is hidden. Resetting.`);
+            examenSelect.value = '';
+            needsReset = false; // Reset was done
+        }
+        // Fallback check based on earlier logic if selectedIndex check failed
+        else if (needsReset) {
+             console.log(`MisEvaluaciones Script: filterExamenes - Forcing reset based on needsReset flag.`);
+             examenSelect.value = '';
+        }
+        console.log(`MisEvaluaciones Script: filterExamenes finished. Final Exam Value: '${examenSelect.value}'`);
+    }
+
+    // --- Initial Setup ---
+    if (cursoSelect && examenSelect) {
+        // 1. Add event listener for future changes
+        cursoSelect.addEventListener('change', filterExamenes);
+
+        // 2. Run the filter function ONCE on page load.
+        //    This ensures options are hidden/shown correctly based on the INITIAL course selection (if any).
+        //    It does NOT force the examenSelect value unless the pre-selected one becomes hidden.
+        console.log("MisEvaluaciones Script: Running initial filterExamenes() call to set option visibility.");
+        filterExamenes();
+        console.log(`MisEvaluaciones Script: State after initial filter call -> Curso: '${cursoSelect.value}', Examen: '${examenSelect.value}'`);
+
+        // 3. *** THE HARDCODED FIX ATTEMPT using setTimeout ***
+        //    Run this *after* initial setup and rendering, to explicitly set the value
+        //    ONLY IF no specific exam filter came from the server.
+        console.log("MisEvaluaciones Script: Setting up setTimeout to force initial Examen selection if needed.");
+        setTimeout(() => {
+            console.log("MisEvaluaciones Script: setTimeout callback executing.");
+            try {
+                 // Check if NO specific exam was requested from the backend
+                if (initialExamenIdFromServer === null || initialExamenIdFromServer === undefined) {
+                    // Check if the dropdown is NOT ALREADY set to "Todos" (value '')
+                    if (examenSelect.value !== '') {
+                        console.warn(`MisEvaluaciones Script: setTimeout - Forcing Examen dropdown to value ''. Current value was '${examenSelect.value}'.`);
+                        examenSelect.value = ''; // FORCE IT
+                    } else {
+                        console.log("MisEvaluaciones Script: setTimeout - Examen dropdown already has value ''. No change needed.");
+                    }
+                } else {
+                    // An exam filter WAS passed from server. We assume Jinja set 'selected' correctly.
+                    // The initial filterExamenes() call ensured visibility. Trust the browser now.
+                    console.log(`MisEvaluaciones Script: setTimeout - Server provided initial exam filter (${initialExamenIdFromServer}). Not forcing value.`);
+                }
+                console.log(`MisEvaluaciones Script: setTimeout finished. Final Exam Value: '${examenSelect.value}'`);
+            } catch (error) {
+                console.error("MisEvaluaciones Script: Error inside setTimeout:", error);
+            }
+        }, 0); // Use 0ms delay to run after current execution stack
+
+    } else {
+        console.error("MisEvaluaciones Script: Critical error - cursoSelect or examenSelect element not found!");
+    }
+
+    // --- Chart Data Processing ---
+    console.log("MisEvaluaciones Script: Processing chart data...");
+    let chartDataValid = true;
+    let examLabels = [], examScores = [], gradeLabels = [], gradeDistribution = [];
+    try {
+        examLabels = [ {% for e, p in estadisticas.rendimiento_examenes.items() %}{{ e|tojson|safe }},{% endfor %} ];
+        examScores = [ {% for e, p in estadisticas.rendimiento_examenes.items() %}{{ "%.1f"|format(p) }},{% endfor %} ];
+        gradeLabels = ['0-20%', '21-40%', '41-60%', '61-80%', '81-100%'];
+        gradeDistribution = [ {% for c in estadisticas.distribuciones %}{{ c }},{% endfor %} ];
+        console.log('MisEvaluaciones Script: Chart Data Processed -> examLabels:', examLabels.length, 'examScores:', examScores.length, 'gradeDistribution:', gradeDistribution);
+    } catch(e) {
+        console.error("MisEvaluaciones Script: Error processing chart data from Jinja:", e);
+        chartDataValid = false;
+    }
+
+    // --- Chart Creation ---
+    if (chartDataValid) {
+        console.log("MisEvaluaciones Script: Attempting chart creation...");
+        // Exam Chart
+        const examChartCtx = document.getElementById('examChart');
+        if (examChartCtx && examLabels.length > 0) {
+             try {
+                console.log("MisEvaluaciones Script: Creating Exam Chart");
+                new Chart(examChartCtx, { type: 'bar', data: { labels: examLabels, datasets: [{ label: 'Mi Rendimiento', data: examScores, backgroundColor: 'rgba(54, 162, 235, 0.7)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: context => `${context.dataset.label}: ${context.raw}%` } } }, scales: { y: { beginAtZero: true, max: 100, ticks: { callback: value => value + '%' } } } } });
+                console.log("MisEvaluaciones Script: Exam Chart created.");
+            } catch(e) { console.error("MisEvaluaciones Script: Error creating Exam Chart:", e); if (examChartCtx.parentNode) examChartCtx.parentNode.innerHTML = '<p class="text-center text-danger mt-3">Error al crear gráfico.</p>'; }
+        } else if (examChartCtx) { examChartCtx.parentNode.innerHTML = '<p class="text-center text-muted mt-3">No hay datos suficientes.</p>'; }
+          else { console.error("MisEvaluaciones Script: Canvas 'examChart' not found!"); }
+
+        // Grades Chart
+        const gradesChartCtx = document.getElementById('gradesChart');
+        const totalGrades = gradeDistribution.reduce((a, b) => a + b, 0);
+        if (gradesChartCtx && totalGrades > 0) {
+             try {
+                console.log("MisEvaluaciones Script: Creating Grades Chart");
+                new Chart(gradesChartCtx, { type: 'doughnut', data: { labels: gradeLabels, datasets: [{ label: 'Nº Evaluaciones', data: gradeDistribution, backgroundColor: [ 'rgba(220, 53, 69, 0.7)', 'rgba(255, 193, 7, 0.7)', 'rgba(13, 202, 240, 0.7)', 'rgba(13, 110, 253, 0.7)', 'rgba(25, 135, 84, 0.7)' ], borderColor: [ 'rgb(220, 53, 69)', 'rgb(255, 193, 7)', 'rgb(13, 202, 240)', 'rgb(13, 110, 253)', 'rgb(25, 135, 84)' ], borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' }, tooltip: { callbacks: { label: function(context) { const label = context.label || ''; const value = context.raw; const percentage = totalGrades > 0 ? (value / totalGrades * 100).toFixed(1) + '%' : '0%'; return `${label}: ${value} (${percentage})`; } } } } } });
+                console.log("MisEvaluaciones Script: Grades Chart created.");
+            } catch(e) { console.error("MisEvaluaciones Script: Error creating Grades Chart:", e); if (gradesChartCtx.parentNode) gradesChartCtx.parentNode.innerHTML = '<p class="text-center text-danger mt-3">Error al crear gráfico.</p>'; }
+        } else if (gradesChartCtx) { gradesChartCtx.parentNode.innerHTML = '<p class="text-center text-muted mt-3">No hay datos suficientes.</p>'; }
+          else { console.error("MisEvaluaciones Script: Canvas 'gradesChart' not found!"); }
+
+    } else {
+        console.error("MisEvaluaciones Script: Chart data invalid. Skipping chart creation.");
+         // Optionally add user messages if charts are missing due to data errors
+         const examChartPH = document.getElementById('examChart')?.parentNode;
+         const gradesChartPH = document.getElementById('gradesChart')?.parentNode;
+         if(examChartPH) examChartPH.innerHTML = '<p class="text-center text-warning mt-3">Error al cargar datos del gráfico de rendimiento.</p>';
+         if(gradesChartPH) gradesChartPH.innerHTML = '<p class="text-center text-warning mt-3">Error al cargar datos del gráfico de distribución.</p>';
+    }
+
+    // --- CSV Export ---
+    console.log("MisEvaluaciones Script: Setting up CSV Export...");
+    const exportButton = document.getElementById('exportCSV');
+    if (exportButton) {
+        exportButton.addEventListener('click', function() {
+            const table = document.querySelector('table');
+            if (!table) return;
+            const rows = table.querySelectorAll('tbody tr');
+
+            // Comprobar si hay datos válidos para exportar
+            if (rows.length === 0 || (rows.length === 1 && rows[0].cells.length <= 1 && rows[0].textContent.includes('No tienes evaluaciones'))) {
+                alert('No hay datos en la tabla para exportar.');
+                return;
+            }
+
+            // Cabeceras (excluyendo la última columna - Acciones)
+            const headers = Array.from(table.querySelectorAll('thead th'))
+                                .slice(0, -1)
+                                .map(th => `"${th.textContent.trim().replace(/"/g, '""')}"`);
+
+            let csvContent = headers.join(',') + '\n';
+
+            // Filas de datos
+            rows.forEach(row => {
+                if (row.cells.length > 1) {
+                    const rowData = Array.from(row.cells)
+                        .slice(0, -1)
+                        .map((cell, index) => {
+                            let text = '';
+                            if (index === 3) {
+                                const scoreElement = cell.querySelector('span.score-text');
+                                text = scoreElement ? scoreElement.textContent.trim() : '';
+                            } else {
+                                text = cell.textContent.trim();
+                            }
+                            return `"${text.replace(/"/g, '""')}"`;
+                        });
+                    csvContent += rowData.join(',') + '\n';
+                }
+            });
+
+            // Crear blob y descargar
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const timestamp = new Date().toISOString().split('T')[0];
+            link.setAttribute('href', url);
+            link.setAttribute('download', `mis_evaluaciones_${timestamp}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        });
+    }
+});
+</script>
+{% endblock %}

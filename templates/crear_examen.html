@@ -1,0 +1,696 @@
+<!-- templates/crear_examen.html -->
+
+{% extends "base.html" %}
+
+{% block title %}
+    {% if editar %}
+        Editar Examen
+    {% else %}
+        Crear Examen
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {# --- Título --- #}
+    <h2 class="mb-4">
+        {% if editar %}
+            <i class="fas fa-edit"></i> Editar Examen: <span class="text-muted fw-normal">{{ curso.nombre if curso else 'Examen' }}</span>
+        {% else %}
+            <i class="fas fa-plus-circle"></i> Crear Nuevo Examen
+        {% endif %}
+    </h2>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            {# --- Formulario Principal --- #}
+            <form method="POST" id="examen-form"
+                  action="{% if editar %}{{ url_for('editar_examen', examen_id=examen.id) }}{% else %}{{ url_for('crear_examen') }}{% endif %}"
+                  {# Pasar estado inicial del flag global. Asegurarse que 'global_formato_habilitado' exista en el contexto al editar #}
+                  data-global-formato-habilitado="{{ 'true' if (editar and global_formato_habilitado) or (not editar and form.habilitar_formato.data) else 'false' }}">
+
+                {{ form.hidden_tag() }} <!-- CSRF token -->
+
+                {# --- Detalles del Examen --- #}
+                <h4 class="mb-3 border-bottom pb-2">Detalles del Examen</h4>
+                <div class="mb-3">
+                    {{ form.titulo.label(class="form-label fw-bold") }}
+                    {{ form.titulo(class="form-control", placeholder="Título Principal del Examen") }}
+                    {% for error in form.titulo.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="mb-3">
+                    {{ form.descripcion.label(class="form-label fw-bold") }}
+                    {{ form.descripcion(class="form-control", rows="3", placeholder="Descripción general del examen") }}
+                    {% for error in form.descripcion.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="row mb-3">
+                     <div class="col-md-6">
+                        {{ form.fecha_cierre.label(class="form-label fw-bold") }}
+                        {# Formatear valor para datetime-local #}
+                        {{ form.fecha_cierre(class="form-control", type="datetime-local", value=form.fecha_cierre.data.strftime('%Y-%m-%dT%H:%M') if form.fecha_cierre.data else '') }}
+                        {% for error in form.fecha_cierre.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-md-6">
+                        {% if not editar %}
+                            {{ form.cursos.label(class="form-label fw-bold") }}
+                            {{ form.cursos(class="form-select", multiple=true, size="5") }}
+                            <small class="form-text text-muted">Seleccione cursos (se creará un examen por cada horario asociado).</small>
+                            {% for error in form.cursos.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        {% else %}
+                             <label class="form-label fw-bold">Curso Asociado</label>
+                             <input type="text" class="form-control" value="{{ curso.codigo if curso else 'N/A' }} - {{ curso.nombre if curso else 'N/A' }}" disabled readonly>
+                         {% endif %}
+                    </div>
+                </div>
+                <hr class="my-4">
+
+                {# --- Configuración GLOBAL de Análisis --- #}
+                <h4 class="mb-3 border-bottom pb-2">Configuración Global de Análisis</h4>
+                <p class="text-muted small mb-3">Habilitar globalmente las herramientas automáticas de revisión.</p>
+                <div class="row mb-2">
+                    {# Switch Global Formato #}
+                    <div class="col-sm-6 col-md-4 col-lg-3 mb-2">
+                        <div class="form-check form-switch">
+                            {{ form.habilitar_formato(class="form-check-input", id="global-habilitar-formato") }}
+                            {{ form.habilitar_formato.label(class="form-check-label") }}
+                            {% for error in form.habilitar_formato.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    {# Switch Global Métricas #}
+                    <div class="col-sm-6 col-md-4 col-lg-3 mb-2">
+                         <div class="form-check form-switch">
+                            {{ form.habilitar_metricas(class="form-check-input") }}
+                            {{ form.habilitar_metricas.label(class="form-check-label") }}
+                             {% for error in form.habilitar_metricas.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    {# Switch Global Similitud #}
+                     <div class="col-sm-6 col-md-4 col-lg-3 mb-2">
+                         <div class="form-check form-switch">
+                            {{ form.habilitar_similitud(class="form-check-input") }}
+                            {{ form.habilitar_similitud.label(class="form-check-label") }}
+                             {% for error in form.habilitar_similitud.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    {# Switch Global Rendimiento #}
+                     <div class="col-sm-6 col-md-4 col-lg-3 mb-2">
+                         <div class="form-check form-switch">
+                            {{ form.habilitar_rendimiento(class="form-check-input") }}
+                            {{ form.habilitar_rendimiento.label(class="form-check-label") }}
+                             {% for error in form.habilitar_rendimiento.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <hr class="my-4">
+
+                {# --- Preguntas --- #}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                     <h4 class="mb-0 border-bottom pb-2">Preguntas</h4>
+                     <button type="button" class="btn btn-primary btn-sm" id="agregar-pregunta">
+                         <i class="fas fa-plus"></i> Agregar Pregunta
+                     </button>
+                </div>
+
+                <div id="preguntas" class="mb-3">
+                    {# Bucle para renderizar preguntas existentes #}
+                    {% for pregunta_field in form.preguntas %}
+                        <div class="card mb-3 shadow-sm pregunta-card"
+                             data-initial-language="{{ pregunta_field.lenguaje_programacion.data }}"
+                             {# Acceder a los subcampos usando .form si es un FormField anidado #}
+                             {# O directamente si los añadiste a PreguntaForm #}
+                             data-initial-linter="{{ pregunta_field.linter_perfil.data if pregunta_field.linter_perfil else '' }}">
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                                <h5 class="card-title mb-0">Pregunta <span class="pregunta-numero">{{ loop.index }}</span></h5>
+                                <button type="button" class="btn btn-danger btn-sm eliminar-pregunta" title="Eliminar esta pregunta">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                {# Campos Pregunta: enunciado, puntaje, lenguaje #}
+                                <div class="mb-3">
+                                    {{ pregunta_field.enunciado.label(class="form-label fw-bold") }} <span class="text-danger">*</span>
+                                    {{ pregunta_field.enunciado(class="form-control", rows="4", placeholder="Escriba aquí el enunciado...") }}
+                                    {% for error in pregunta_field.enunciado.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        {{ pregunta_field.puntaje_total.label(class="form-label fw-bold") }} <span class="text-danger">*</span>
+                                        {{ pregunta_field.puntaje_total(class="form-control", placeholder="Ej: 20.0", type="number", step="0.1", min="0") }}
+                                        {% for error in pregunta_field.puntaje_total.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                    </div>
+                                    <div class="col-md-6">
+                                        {{ pregunta_field.lenguaje_programacion.label(class="form-label fw-bold") }} <span class="text-danger">*</span>
+                                        {# Clase JS #}
+                                        {{ pregunta_field.lenguaje_programacion(class="form-select pregunta-lenguaje") }}
+                                        {% for error in pregunta_field.lenguaje_programacion.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                    </div>
+                                </div>
+
+                                {# --- SECCIÓN CONFIGURACIÓN DE FORMATO POR PREGUNTA --- #}
+                                <div class="mt-3 pt-3 border-top formato-config-section" style="display: none;">
+                                    <h6 class="text-muted mb-2">Configuración Análisis de Formato (Esta Pregunta)</h6>
+                                    <p class="text-muted small mb-3">Selecciona una herramienta si deseas un análisis específico. Solo aplica si la opción global de formato está habilitada.</p>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            {# Asegúrate que estos campos existan en PreguntaForm #}
+                                            {{ pregunta_field.linter_perfil.label(class="form-label") }}
+                                            {{ pregunta_field.linter_perfil(class="form-select pregunta-linter-perfil") }}
+                                            <small class="form-text text-muted">{{ pregunta_field.linter_perfil.description }}</small>
+                                            {% for error in pregunta_field.linter_perfil.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            {{ pregunta_field.linter_args_adicionales.label(class="form-label") }}
+                                            {{ pregunta_field.linter_args_adicionales(class="form-control form-control-sm pregunta-linter-args", rows=2) }}
+                                            <small class="form-text text-muted">{{ pregunta_field.linter_args_adicionales.description }}</small>
+                                            {% for error in pregunta_field.linter_args_adicionales.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {# --- FIN SECCIÓN --- #}
+
+                                {# --- Rubrica LLM --- #}
+                                <div class="mb-3 mt-3 border-top pt-3">
+                                    {{ pregunta_field.rubrica_evaluacion.label(class="form-label fw-bold") }}
+                                    <span class="badge bg-secondary ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ pregunta_field.rubrica_evaluacion.description }}">
+                                        <i class="fas fa-info-circle"></i> JSON
+                                    </span>
+                                    {{ pregunta_field.rubrica_evaluacion(class="form-control form-control-sm", rows=8) }}
+                                    {% for error in pregunta_field.rubrica_evaluacion.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                </div>
+
+                                {# --- Casos de Prueba --- #}
+                                <div class="d-flex justify-content-between align-items-center mb-2 mt-4 border-top pt-3">
+                                    <h6 class="mb-0 text-muted">Casos de Prueba</h6>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm agregar-caso">
+                                        <i class="fas fa-plus"></i> Agregar Caso
+                                    </button>
+                                </div>
+                                <div class="casos_de_prueba ps-2">
+                                    {# Bucle casos existentes #}
+                                    {% for caso_field in pregunta_field.casos_de_prueba %}
+                                        <div class="card mb-2 shadow-sm caso-card bg-white">
+                                            <div class="card-body p-3">
+                                                <div class="d-flex justify-content-end mb-2">
+                                                     <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1 eliminar-caso" title="Eliminar este caso">
+                                                        <i class="fas fa-times fa-fw"></i>
+                                                     </button>
+                                                </div>
+                                                {# Renderizar campos del caso #}
+                                                <div class="mb-2">
+                                                     {{ caso_field.descripcion.label(class="form-label form-label-sm") }}
+                                                     {{ caso_field.descripcion(class="form-control form-control-sm", placeholder="Descripción breve") }}
+                                                </div>
+                                                <div class="mb-2">
+                                                     {{ caso_field.argumentos.label(class="form-label form-label-sm") }}
+                                                     {{ caso_field.argumentos(class="form-control form-control-sm", rows="1", placeholder='Ej: ["arg1"]') }}
+                                                </div>
+                                                 <div class="mb-2">
+                                                     {{ caso_field.entrada.label(class="form-label form-label-sm") }}
+                                                     {{ caso_field.entrada(class="form-control form-control-sm", rows="2", placeholder="Input STDIN") }}
+                                                </div>
+                                                 <div class="mb-2">
+                                                     {{ caso_field.salida_esperada.label(class="form-label form-label-sm fw-bold") }}<span class="text-danger">*</span>
+                                                     {{ caso_field.salida_esperada(class="form-control form-control-sm", rows="2", placeholder="Salida EXACTA STDOUT") }}
+                                                </div>
+                                                 <div class="row">
+                                                      <div class="col-md-6 mb-2">
+                                                           {{ caso_field.puntos.label(class="form-label form-label-sm fw-bold") }}<span class="text-danger">*</span>
+                                                           {{ caso_field.puntos(class="form-control form-control-sm", type="number", step="0.1", min="0", placeholder="Puntos") }}
+                                                      </div>
+                                                      <div class="col-md-6 mb-2 d-flex align-items-center">
+                                                           <div class="form-check form-switch mt-3">
+                                                              {{ caso_field.es_oculto(class="form-check-input") }}
+                                                              {{ caso_field.es_oculto.label(class="form-check-label form-label-sm") }}
+                                                           </div>
+                                                      </div>
+                                                 </div>
+                                                 {# Mostrar errores del caso si existen #}
+                                                 {% if caso_field.errors %}
+                                                     <div class="alert alert-danger alert-sm mt-2 p-1">
+                                                         {% for field, errors in caso_field.errors.items() %}
+                                                             {% for error in errors %}<small>{{ error }}</small><br>{% endfor %}
+                                                         {% endfor %}
+                                                     </div>
+                                                 {% endif %}
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                    {# Placeholder casos #}
+                                    <div class="no-casos-placeholder text-muted small p-2 {% if pregunta_field.casos_de_prueba.entries %}d-none{% endif %}">
+                                        <i class="fas fa-info-circle"></i> No hay casos de prueba definidos.
+                                    </div>
+                                </div> {# End .casos_de_prueba #}
+                            </div> {# End card-body #}
+                        </div> {# End pregunta-card #}
+                    {% endfor %}
+                    {# Placeholder sin preguntas #}
+                    <div id="no-preguntas-placeholder" class="alert alert-secondary text-center {% if form.preguntas.entries %}d-none{% endif %}">
+                         <i class="fas fa-info-circle"></i> Aún no has agregado ninguna pregunta al examen.
+                    </div>
+                </div> {# End #preguntas #}
+
+                {# --- Botón de Envío --- #}
+                <div class="d-grid mt-4">
+                    <button type="submit" class="btn btn-lg {% if editar %}btn-warning{% else %}btn-success{% endif %}">
+                        {% if editar %}<i class="fas fa-save"></i> Actualizar Examen
+                        {% else %}<i class="fas fa-check-circle"></i> Crear Examen
+                        {% endif %}
+                    </button>
+                </div>
+            </form> {# End form #}
+        </div> {# End card-body #}
+    </div> {# End card #}
+
+    {# --- Botón Volver --- #}
+    <a href="{{ url_for('gestionar_examenes') }}" class="btn btn-outline-secondary mt-3 mb-4">
+        <i class="fas fa-arrow-left"></i> Volver a Gestionar Exámenes
+    </a>
+</div> {# End container #}
+
+{# --- Plantillas JS --- #}
+<template id="pregunta-template">
+     <div class="card mb-3 shadow-sm pregunta-card"
+          {# Definir lenguaje inicial default #}
+          data-initial-language="{{ LENGUAJES_SOPORTADOS[0][0] if LENGUAJES_SOPORTADOS else 'python' }}"
+          data-initial-linter="">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+            <h5 class="card-title mb-0">Pregunta <span class="pregunta-numero">__prefix_num__</span></h5>
+            <button type="button" class="btn btn-danger btn-sm eliminar-pregunta" title="Eliminar esta pregunta">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        </div>
+        <div class="card-body">
+             {# Campos Pregunta #}
+             <div class="mb-3">
+                 <label class="form-label fw-bold" for="preguntas-__prefix__-enunciado">Enunciado <span class="text-danger">*</span></label>
+                 <textarea class="form-control" id="preguntas-__prefix__-enunciado" name="preguntas-__prefix__-enunciado" rows="4" placeholder="Escriba aquí el enunciado..."></textarea>
+             </div>
+             <div class="row mb-3">
+                  <div class="col-md-6">
+                     <label class="form-label fw-bold" for="preguntas-__prefix__-puntaje_total">Puntaje Total <span class="text-danger">*</span></label>
+                     <input class="form-control" id="preguntas-__prefix__-puntaje_total" name="preguntas-__prefix__-puntaje_total" type="number" step="0.1" placeholder="Ej: 20.0" min="0" value="10"> {# Default value? #}
+                 </div>
+                  <div class="col-md-6">
+                     <label class="form-label fw-bold" for="preguntas-__prefix__-lenguaje_programacion">Lenguaje <span class="text-danger">*</span></label>
+                     {# Clase JS #}
+                     <select class="form-select pregunta-lenguaje" id="preguntas-__prefix__-lenguaje_programacion" name="preguntas-__prefix__-lenguaje_programacion">
+                          {# Usar LENGUAJES_SOPORTADOS de Python si está disponible, sino hardcodear #}
+                          {% if LENGUAJES_SOPORTADOS %}
+                              {% for val, label in LENGUAJES_SOPORTADOS %}
+                                 <option value="{{ val }}" {% if loop.first %}selected{% endif %}>{{ label }}</option>
+                              {% endfor %}
+                          {% else %}
+                              <option value="c">C</option><option value="python" selected>Python</option><option value="java">Java</option><option value="pseint">PSeInt</option>
+                          {% endif %}
+                     </select>
+                 </div>
+             </div>
+
+            {# --- SECCIÓN FORMATO (Plantilla JS) --- #}
+            <div class="mt-3 pt-3 border-top formato-config-section" style="display: none;">
+                <h6 class="text-muted mb-2">Configuración Análisis de Formato (Pregunta)</h6>
+                <p class="text-muted small mb-3">Selecciona una herramienta si deseas un análisis específico.</p>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                         <label class="form-label" for="preguntas-__prefix__-linter_perfil">Herramienta/Perfil</label>
+                         {# Clase JS, name correcto #}
+                         <select class="form-select pregunta-linter-perfil" id="preguntas-__prefix__-linter_perfil" name="preguntas-__prefix__-linter_perfil">
+                             <option value="" selected>--- Ninguno ---</option>
+                         </select>
+                         <small class="form-text text-muted">Solo si la opción global está activa.</small>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                         <label class="form-label" for="preguntas-__prefix__-linter_args_adicionales">Argumentos Adicionales</label>
+                         {# Clase JS, name correcto #}
+                         <textarea class="form-control form-control-sm pregunta-linter-args" id="preguntas-__prefix__-linter_args_adicionales" name="preguntas-__prefix__-linter_args_adicionales" rows="2" placeholder="Ej: --ignore=E501..."></textarea>
+                         <small class="form-text text-muted">Argumentos extra para el linter.</small>
+                    </div>
+                </div>
+            </div>
+            {# --- FIN SECCIÓN --- #}
+
+            {# --- Rubrica LLM --- #}
+            <div class="mb-3 mt-3 border-top pt-3">
+                 <label class="form-label fw-bold" for="preguntas-__prefix__-rubrica_evaluacion">Rúbrica Evaluación (JSON, Opcional)</label>
+                 <span class="badge bg-secondary ms-1" data-bs-toggle="tooltip" title="Rúbrica cualitativa para LLM."> <i class="fas fa-info-circle"></i> JSON </span>
+                 <textarea class="form-control form-control-sm" style="font-family: monospace;" id="preguntas-__prefix__-rubrica_evaluacion" name="preguntas-__prefix__-rubrica_evaluacion" rows="8" placeholder='{\n  "criterio1": {...}\n}'></textarea>
+            </div>
+
+            {# --- Casos de Prueba --- #}
+            <div class="d-flex justify-content-between align-items-center mb-2 mt-4 border-top pt-3">
+                <h6 class="mb-0 text-muted">Casos de Prueba</h6>
+                <button type="button" class="btn btn-outline-secondary btn-sm agregar-caso">
+                    <i class="fas fa-plus"></i> Agregar Caso
+                </button>
+            </div>
+            <div class="casos_de_prueba ps-2">
+                <div class="no-casos-placeholder text-muted small p-2">
+                   <i class="fas fa-info-circle"></i> No hay casos de prueba definidos. Agrega uno.
+                </div>
+            </div>
+        </div> {# End card-body #}
+    </div> {# End pregunta-card #}
+</template>
+
+{# --- Plantilla Caso de Prueba (Sin Cambios Necesarios Aquí) --- #}
+<template id="caso-template">
+     <div class="card mb-2 shadow-sm caso-card bg-white">
+         <div class="card-body p-3">
+             {# CSRF (generalmente no necesario en sub-formularios) #}
+             {# <input type="hidden" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-csrf_token" value="..."> #}
+             <div class="d-flex justify-content-end mb-2">
+                 <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1 eliminar-caso" title="Eliminar este caso">
+                     <i class="fas fa-times fa-fw"></i>
+                 </button>
+             </div>
+            <div class="mb-2">
+                <label class="form-label form-label-sm" for="preguntas-__p_idx__-casos_de_prueba-__prefix__-descripcion">Descripción (Opcional)</label>
+                <input class="form-control form-control-sm" id="preguntas-__p_idx__-casos_de_prueba-__prefix__-descripcion" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-descripcion" type="text" placeholder="Descripción breve">
+            </div>
+            <div class="mb-2">
+                <label class="form-label form-label-sm" for="preguntas-__p_idx__-casos_de_prueba-__prefix__-argumentos">Argumentos (JSON Lista, Opcional)</label>
+                <textarea class="form-control form-control-sm" id="preguntas-__p_idx__-casos_de_prueba-__prefix__-argumentos" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-argumentos" rows="1" placeholder='Ej: ["10", "20"]'></textarea>
+            </div>
+            <div class="mb-2">
+                <label class="form-label form-label-sm" for="preguntas-__p_idx__-casos_de_prueba-__prefix__-entrada">Entrada Estándar (Opcional)</label>
+                <textarea class="form-control form-control-sm" id="preguntas-__p_idx__-casos_de_prueba-__prefix__-entrada" style="white-space: pre; font-family: monospace;" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-entrada" rows="2" placeholder="Input STDIN"></textarea>
+            </div>
+            <div class="mb-2">
+                <label class="form-label form-label-sm fw-bold" for="preguntas-__p_idx__-casos_de_prueba-__prefix__-salida_esperada">Salida Estándar Esperada <span class="text-danger">*</span></label>
+                <textarea class="form-control form-control-sm" id="preguntas-__p_idx__-casos_de_prueba-__prefix__-salida_esperada" style="white-space: pre; font-family: monospace;" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-salida_esperada" rows="2" placeholder="Salida EXACTA STDOUT"></textarea>
+            </div>
+            <div class="row">
+                 <div class="col-md-6 mb-2">
+                    <label class="form-label form-label-sm fw-bold" for="preguntas-__p_idx__-casos_de_prueba-__prefix__-puntos">Puntos <span class="text-danger">*</span></label>
+                    <input class="form-control form-control-sm" id="preguntas-__p_idx__-casos_de_prueba-__prefix__-puntos" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-puntos" type="number" step="0.1" placeholder="Puntos" min="0">
+                </div>
+                 <div class="col-md-6 mb-2 d-flex align-items-center">
+                     <div class="form-check form-switch mt-3">
+                         <input class="form-check-input" id="preguntas-__p_idx__-casos_de_prueba-__prefix__-es_oculto" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-es_oculto" type="checkbox" value="y">
+                         <label class="form-check-label form-label-sm" for="preguntas-__p_idx__-casos_de_prueba-__prefix__-es_oculto">Caso Oculto</label>
+                     </div>
+                 </div>
+            </div>
+         </div>
+     </div>
+</template>
+
+{# --- JavaScript --- #}
+{# Incluir jQuery y Bootstrap JS (asegúrate que estén disponibles) #}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Parsear el JSON pasado desde la ruta Flask
+    let lintersDisponibles = {}; // Default a objeto vacío
+    // Usar |tojson|safe para asegurar que es un JSON válido y evitar escape HTML
+    const lintersJsonString = {{ todos_los_linters_json|tojson|safe }};
+    lintersDisponibles = JSON.parse(lintersJsonString);
+    console.log("Linters Disponibles Cargados:", lintersDisponibles);
+    // Definir LENGUAJES_SOPORTADOS en JS (como fallback o si no se pasa desde Python)
+    const LENGUAJES_SOPORTADOS_JS = [
+        ['c', 'C'], ['python', 'Python'], ['java', 'Java'], ['pseint', 'PSeInt']
+        // Asegúrate que coincida con tu constante de Python
+    ];
+</script>
+<script>
+$(document).ready(function() {
+
+    const $preguntasContainer = $('#preguntas'); // Contenedor principal de preguntas
+    const $noPreguntasPlaceholder = $('#no-preguntas-placeholder');
+
+    // --- Función para verificar placeholders ---
+    function checkPlaceholders() {
+        // Placeholder de preguntas
+        if ($preguntasContainer.find('.pregunta-card').length === 0) {
+            $noPreguntasPlaceholder.removeClass('d-none');
+        } else {
+            $noPreguntasPlaceholder.addClass('d-none');
+        }
+        // Placeholder de casos dentro de cada pregunta
+        $preguntasContainer.find('.pregunta-card').each(function() {
+            var $casosContainer = $(this).find('.casos_de_prueba');
+            if ($casosContainer.find('.caso-card').length === 0) {
+                $casosContainer.find('.no-casos-placeholder').removeClass('d-none');
+            } else {
+                $casosContainer.find('.no-casos-placeholder').addClass('d-none');
+            }
+        });
+    }
+
+    // --- Función para actualizar índices de CASOS ---
+    function actualizarIndicesCasos(preguntaCard) {
+        var preguntaIndex = $preguntasContainer.find('.pregunta-card').index(preguntaCard);
+        preguntaCard.find('.casos_de_prueba .caso-card').each(function(casoIndex) {
+            var $casoCard = $(this);
+            $casoCard.find('[name*="casos_de_prueba"], [id*="casos_de_prueba"]').each(function() {
+                var $element = $(this);
+                ['name', 'id'].forEach(function(attr) {
+                    var oldVal = $element.attr(attr);
+                    if (oldVal) {
+                        // Construir el nuevo prefijo completo de forma segura
+                        var nameParts = oldVal.split('-');
+                        var fieldName = nameParts.pop(); // Obtener el nombre final del campo
+                        var newPrefix = `preguntas-${preguntaIndex}-casos_de_prueba-${casoIndex}-`;
+                        var newVal = newPrefix + fieldName;
+
+                        $element.attr(attr, newVal);
+                        if (attr === 'id') {
+                            var $label = $casoCard.find(`label[for="${oldVal}"]`);
+                            if ($label.length) { $label.attr('for', newVal); }
+                        }
+                    }
+                });
+            });
+        });
+    }
+
+    // --- Función para actualizar índices de PREGUNTAS ---
+    function actualizarIndicesPreguntas() {
+        console.log("Actualizando índices de preguntas...");
+        $preguntasContainer.find('.pregunta-card').each(function(index) {
+            var $preguntaCard = $(this);
+            $preguntaCard.find('.pregunta-numero').text(index + 1);
+
+            // Actualizar campos directos de la pregunta
+            $preguntaCard.find('> .card-body > [name^="preguntas-"], > .card-body > .row [name^="preguntas-"], > .card-body > .formato-config-section [name^="preguntas-"], > .card-body > div > [name^="preguntas-"]')
+                .not('[name*="casos_de_prueba"]') // Excluir campos de casos de prueba
+                .each(function() {
+                var $element = $(this);
+                var nameAttr = $element.attr('name');
+                var idAttr = $element.attr('id');
+
+                if (nameAttr) {
+                    var nameMatch = nameAttr.match(/^preguntas-\d+-(.*)$/);
+                    if (nameMatch && nameMatch[1]) {
+                        var fieldPath = nameMatch[1];
+                        var newName = `preguntas-${index}-${fieldPath}`;
+                        $element.attr('name', newName);
+
+                        if (idAttr) {
+                            var idMatch = idAttr.match(/^preguntas-\d+-(.*)$/);
+                            if (idMatch && idMatch[1] === fieldPath) {
+                                var newId = `preguntas-${index}-${fieldPath}`;
+                                $element.attr('id', newId);
+                                var $label = $preguntaCard.find(`label[for="${idAttr}"]`).first(); // Buscar label asociado
+                                if ($label.length) { $label.attr('for', newId); }
+                            }
+                        }
+                    }
+                }
+            });
+            // Re-indexar los casos dentro de esta pregunta
+            actualizarIndicesCasos($preguntaCard);
+        });
+        console.log("Índices de preguntas actualizados.");
+    }
+
+    // --- Lógica para Linter Dinámico y Visibilidad ---
+    const linterOptionsCache = {};
+    const $examenForm = $('#examen-form');
+    const $globalFormatoSwitch = $('#global-habilitar-formato');
+    let initialGlobalStateStr = $examenForm.attr('data-global-formato-habilitado');
+    let isGlobalFormatoEnabled = (initialGlobalStateStr === 'true');
+    console.log("Estado inicial global formato:", isGlobalFormatoEnabled, "(Leído:", initialGlobalStateStr, ")");
+
+    function toggleFormatoConfigSections() {
+        console.log("Toggling formato sections. Global enabled:", isGlobalFormatoEnabled);
+        const $sections = $('#preguntas .formato-config-section');
+        if (isGlobalFormatoEnabled) { $sections.slideDown(150); }
+        else { $sections.slideUp(150); }
+    }
+
+    function populateLinterSelect($select, options, selectedValue) {
+        $select.empty().append($('<option>', { value: '', text: '--- Ninguno ---' }));
+        const initialValue = String(selectedValue || '');
+        let foundSelected = false;
+        if (options && Array.isArray(options)) {
+             $.each(options, function(index, optionData) {
+                 // Saltar la opción "Ninguno" que viene del backend si existe
+                 if (Array.isArray(optionData) && optionData[0] === '' && index === 0) return;
+
+                 if (Array.isArray(optionData) && optionData.length >= 2) {
+                     let value = optionData[0]; let text = optionData[1];
+                     if (value !== null && value !== undefined && value !== '') { // Ignorar '' explícitamente también
+                          let valueStr = String(value); const $option = $('<option>', { value: value, text: text });
+                          if (valueStr === initialValue) { $option.prop('selected', true); foundSelected = true; }
+                          $select.append($option);
+                     }
+                 } else { console.warn("Opt Linter Inesperado:", optionData); }
+             });
+        } else { console.warn("Opciones Linter no es array:", options); }
+        // Seleccionar 'Ninguno' si no se encontró el valor o si initialValue era vacío
+        if (!foundSelected) { $select.val(''); } else { $select.val(initialValue); }
+    }
+
+    // --- Función para actualizar opciones (SIN AJAX) ---
+    function updateLinterOptions(selectElement, language, selectedValue = '') {
+        const $select = $(selectElement);
+        console.log(`Actualizando linters para lang=${language}, sel=${selectedValue}, selectID=${$select.attr('id')}`);
+        let options = []; // Default a vacío
+
+        // Acceder al objeto global 'lintersDisponibles'
+        if (language && typeof lintersDisponibles === 'object' && lintersDisponibles && lintersDisponibles[language]) {
+            options = lintersDisponibles[language];
+            $select.prop('disabled', false); // Habilitar si hay opciones
+        } else {
+            console.warn(`No se encontraron opciones de linter para el lenguaje: ${language}`);
+            $select.prop('disabled', true); // Deshabilitar si no hay opciones
+        }
+        populateLinterSelect($select, options, selectedValue); // Poblar con las opciones encontradas (o vacías)
+    }
+
+    // --- Event Listeners ---
+    $globalFormatoSwitch.on('change', function() {
+        isGlobalFormatoEnabled = $(this).is(':checked');
+        $examenForm.attr('data-global-formato-habilitado', isGlobalFormatoEnabled ? 'true' : 'false');
+        toggleFormatoConfigSections();
+    });
+
+    $preguntasContainer.on('change', '.pregunta-lenguaje', function() { // Delegación en contenedor principal
+        const selectedLanguage = $(this).val();
+        const $linterSelect = $(this).closest('.card-body').find('.pregunta-linter-perfil');
+        if($linterSelect.length){ updateLinterOptions($linterSelect, selectedLanguage); }
+        else { console.error("No se encontró .pregunta-linter-perfil"); }
+    });
+
+    // --- AGREGAR PREGUNTA (REVISADO) ---
+    $('#agregar-pregunta').on('click', function() {
+        console.log("Agregar Pregunta Clicked");
+        var currentQuestionCount = $preguntasContainer.find('.pregunta-card').length;
+        var newIndex = currentQuestionCount; // Nuevo índice base 0
+        console.log("Nuevo índice será:", newIndex);
+
+        var template = $('#pregunta-template').html();
+        if (!template) { console.error("Template #pregunta-template no encontrado!"); return; }
+
+        // Reemplazar prefijos de forma segura
+        var newPreguntaHtml = template.replace(/__prefix_num__/g, newIndex + 1);
+        // Usar función para reemplazar prefijos de name/id de forma segura
+        newPreguntaHtml = newPreguntaHtml.replace(/preguntas-__prefix__-/g, function(match) {
+            // Esta función asegura que solo reemplazamos el prefijo real
+            return `preguntas-${newIndex}-`;
+        });
+         newPreguntaHtml = newPreguntaHtml.replace(/for="preguntas-__prefix__-/g, `for="preguntas-${newIndex}-`);
+
+        // Añadir al DOM
+        $preguntasContainer.append(newPreguntaHtml);
+        console.log("Nueva pregunta añadida al DOM.");
+
+        var $newPreguntaCard = $preguntasContainer.find(`.pregunta-card:eq(${newIndex})`);
+        if(!$newPreguntaCard.length) { console.error("Nueva tarjeta no encontrada por índice!"); return; }
+
+        // Ocultar placeholder
+        checkPlaceholders();
+
+        // Inicializar la nueva pregunta
+        console.log("Inicializando nueva pregunta...");
+        // 1. Visibilidad de sección formato
+        $newPreguntaCard.find('.formato-config-section').toggle(isGlobalFormatoEnabled); // Usar toggle(boolean)
+
+        // 2. Poblar linter
+        const defaultLang = $newPreguntaCard.find('.pregunta-lenguaje').val();
+        const $newLinterSelect = $newPreguntaCard.find('.pregunta-linter-perfil');
+        console.log("  Inicializando linter para lenguaje:", defaultLang);
+        if (defaultLang && $newLinterSelect.length) {
+            updateLinterOptions($newLinterSelect, defaultLang);
+        } else { console.warn("  No se pudo obtener lenguaje o select de linter."); }
+        // 3. Inicializar tooltips
+        $newPreguntaCard.find('[data-bs-toggle="tooltip"]').each(function() { new bootstrap.Tooltip(this); });
+
+        console.log("Nueva pregunta inicializada.");
+        // No llamar a actualizarIndicesPreguntas aquí
+    });
+
+    // --- ELIMINAR PREGUNTA ---
+    $preguntasContainer.on('click', '.eliminar-pregunta', function() { // Delegación en contenedor
+        if (confirm('¿Estás seguro de eliminar esta pregunta y sus casos?')) {
+            $(this).closest('.pregunta-card').remove();
+            actualizarIndicesPreguntas(); // ¡MUY IMPORTANTE aquí!
+            checkPlaceholders();
+        }
+    });
+
+    // --- AGREGAR CASO (SIN CAMBIOS) ---
+     $preguntasContainer.on('click', '.agregar-caso', function() { // Delegación
+        var $preguntaCard = $(this).closest('.pregunta-card');
+        var $casosContainer = $preguntaCard.find('.casos_de_prueba');
+        var preguntaIndex = $preguntasContainer.find('.pregunta-card').index($preguntaCard);
+        var casoIndex = $casosContainer.find('.caso-card').length;
+        var template = $('#caso-template').html();
+        if (!template) { console.error("Template #caso-template no encontrado!"); return; }
+
+        var newCasoHtml = template.replace(/__p_idx__/g, preguntaIndex).replace(/__prefix__/g, casoIndex);
+        // Reemplazar prefijos de name/id
+        newCasoHtml = newCasoHtml.replace(/preguntas-__p_idx__-casos_de_prueba-__prefix__-/g, `preguntas-${preguntaIndex}-casos_de_prueba-${casoIndex}-`);
+        newCasoHtml = newCasoHtml.replace(/for="preguntas-__p_idx__-casos_de_prueba-__prefix__-/g, `for="preguntas-${preguntaIndex}-casos_de_prueba-${casoIndex}-`);
+
+        $casosContainer.append(newCasoHtml);
+        // No es estrictamente necesario re-indexar todos los casos aquí si solo añadimos al final,
+        // pero es más seguro hacerlo por si acaso.
+        actualizarIndicesCasos($preguntaCard);
+        checkPlaceholders();
+    });
+
+     // --- ELIMINAR CASO (SIN CAMBIOS) ---
+    $preguntasContainer.on('click', '.eliminar-caso', function() { // Delegación
+         if (confirm('¿Eliminar este caso de prueba?')) {
+            var $preguntaCard = $(this).closest('.pregunta-card');
+            $(this).closest('.caso-card').remove();
+            actualizarIndicesCasos($preguntaCard); // Re-indexar casos restantes
+            checkPlaceholders();
+        }
+    });
+
+
+    // --- Inicialización al Cargar la Página ---
+    // Inicializar tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl) });
+
+    checkPlaceholders(); // Verificar placeholders iniciales
+
+    // Inicializar linters para preguntas existentes al cargar
+    console.log("Inicializando linters para preguntas existentes...");
+    $('.pregunta-card').each(function(index) {
+        const $card = $(this);
+        const initialLanguage = $card.data('initial-language');
+        const initialLinter = $card.data('initial-linter'); // Leer data attribute
+        const $linterSelect = $card.find('.pregunta-linter-perfil');
+        console.log(`  Inicializando card index ${index}: Lang='${initialLanguage}', Linter='${initialLinter}'`);
+        if (initialLanguage && $linterSelect.length) {
+            updateLinterOptions($linterSelect, initialLanguage, initialLinter); // Carga y selecciona
+        } else if (!$linterSelect.length) {
+             console.warn(`  No se encontró .pregunta-linter-perfil en card index ${index}`);
+        }
+    });
+
+    // Establecer visibilidad inicial de las secciones de formato
+    toggleFormatoConfigSections();
+
+    // Prevenir doble submit
+    $('#examen-form').submit(function() { $(this).find('button[type="submit"]').prop('disabled', true).prepend('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>'); });
+
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,63 @@
+Para correr tu aplicación de Flask una vez que hayas solucionado el problema del entorno virtual y las dependencias, sigue estos pasos:
+
+### Paso 1: Activar el entorno virtual
+
+Si aún no tienes el entorno virtual activado, abre PowerShell (o el terminal de tu preferencia) y navega hasta el directorio de tu proyecto. Luego, activa el entorno virtual con el siguiente comando:
+
+```powershell
+.\venv\Scripts\Activate
+```
+
+### Paso 2: Instalar las dependencias
+
+Si no has instalado las dependencias aún, ejecuta el siguiente comando para instalar todo lo que está listado en el archivo `requirements.txt`:
+
+```powershell
+pip install -r requirements.txt
+```
+
+Si ya las has instalado, puedes omitir este paso.
+
+### Paso 3: Ejecutar las migraciones (si es necesario)
+
+Si tu proyecto utiliza Flask-Migrate para manejar las migraciones de la base de datos, ejecuta los siguientes comandos para inicializar y aplicar las migraciones:
+
+1. **Inicializar las migraciones (si no lo has hecho antes):**
+
+   ```powershell
+   python -m flask db init
+   ```
+
+2. **Generar las migraciones (si es necesario):**
+
+   ```powershell
+   python -m flask db migrate -m "Initial migration"
+   ```
+
+3. **Aplicar las migraciones:**
+
+   ```powershell
+   python -m flask db upgrade
+   ```
+
+### Paso 4: Correr la aplicación
+
+Una vez que todo esté configurado, puedes correr tu aplicación de Flask. Ejecuta el siguiente comando:
+
+```powershell
+python -m flask run
+```
+
+Esto debería iniciar el servidor de Flask en `http://127.0.0.1:5000/` (puedes acceder a tu aplicación desde cualquier navegador web en esa dirección).
+
+### Paso 5: Verificar que la aplicación funciona
+
+Abre tu navegador y visita la URL `http://127.0.0.1:5000/`. Si la aplicación se está ejecutando correctamente, deberías ver la página de inicio o cualquier ruta que hayas configurado.
+
+### Paso 6: Hacer pruebas adicionales
+
+Si tienes rutas o funciones específicas que deseas probar, puedes navegar por ellas a través del navegador o, si lo prefieres, usar herramientas como **Postman** o **curl** para hacer solicitudes HTTP.
+
+---
+
+Si encuentras algún error durante este proceso o tienes más preguntas, no dudes en comentarlo para poder ayudarte.

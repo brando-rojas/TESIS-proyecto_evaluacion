@@ -1,0 +1,41 @@
+<!-- templates/ver_resultados_alumno.html -->
+
+{% extends "base.html" %}
+
+{% block title %}Resultados de Evaluaciones{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="fas fa-chart-pie"></i> Resultados de Evaluaciones</h2>
+
+<!-- Tabla de Resultados -->
+<div class="table-responsive">
+    <table class="table table-bordered table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>Examen</th>
+                <th>Pregunta</th>
+                <th>Puntaje Obtenido</th>
+                <th>Puntaje Total</th>
+                <th>Feedback</th>
+                <th>Fecha de Evaluación</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for evaluacion in current_user.evaluaciones %}
+            <tr>
+                <td>{{ evaluacion.entrega.pregunta.examen.titulo }}</td>
+                <td>{{ evaluacion.entrega.pregunta.enunciado }}</td>
+                <td>{{ evaluacion.puntaje_obtenido }}</td>
+                <td>{{ evaluacion.entrega.pregunta.puntaje_total }}</td>
+                <td>{{ evaluacion.feedback }}</td>
+                <td>{{ evaluacion.fecha_evaluacion.strftime('%Y-%m-%d %H:%M') }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" class="text-center">No hay evaluaciones disponibles.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

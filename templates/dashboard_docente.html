@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Docente{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Encabezado con información del docente -->
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <h1 class="display-5 fw-bold"><i class="fas fa-chalkboard-teacher text-primary me-2"></i> Bienvenido, {{ current_user.nombre }}</h1>
+            <p class="lead text-muted">Panel de gestión para tus cursos y evaluaciones</p>
+        </div>
+        <div class="col-lg-4 d-flex align-items-center justify-content-lg-end mt-3 mt-lg-0">
+            <div class="dropdown">
+                <button class="btn btn-outline-primary dropdown-toggle" type="button" id="quickActionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-bolt me-1"></i> Acciones rápidas
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="quickActionsDropdown">
+                    <li><a class="dropdown-item" href="{{ url_for('crear_examen') }}"><i class="fas fa-plus-circle me-2 text-success"></i> Crear nuevo examen</a></li>
+                    <li><a class="dropdown-item" href="{{ url_for('gestionar_examenes') }}"><i class="fas fa-edit me-2 text-info"></i> Gestionar exámenes</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="{{ url_for('ver_resultados') }}"><i class="fas fa-chart-bar me-2 text-warning"></i> Ver resultados</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumen de estadísticas -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card bg-primary text-white h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">Exámenes Activos</h6>
+                            <h2 class="display-6 fw-bold mb-0">{{ examenes|selectattr('fecha_cierre', 'gt', now)|list|length }}</h2>
+                        </div>
+                        <div class="icon-circle bg-primary-light">
+                            <i class="fas fa-clipboard-list fa-2x text-white"></i>
+                        </div>
+                    </div>
+                    <p class="card-text small mt-2">Exámenes pendientes de cierre</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card bg-success text-white h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">Cursos Asignados</h6>
+                            <h2 class="display-6 fw-bold mb-0">{{ current_user.horarios|length }}</h2>
+                        </div>
+                        <div class="icon-circle bg-success-light">
+                            <i class="fas fa-book fa-2x text-white"></i>
+                        </div>
+                    </div>
+                    <p class="card-text small mt-2">Horarios bajo tu responsabilidad</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card bg-info text-white h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">Total Estudiantes</h6>
+                            <h2 class="display-6 fw-bold mb-0">{{ current_user.horarios|map(attribute='alumnos')|map('length')|sum }}</h2>
+                        </div>
+                        <div class="icon-circle bg-info-light">
+                            <i class="fas fa-user-graduate fa-2x text-white"></i>
+                        </div>
+                    </div>
+                    <p class="card-text small mt-2">Alumnos en tus horarios</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card bg-warning text-dark h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">Evaluaciones</h6>
+                            <h2 class="display-6 fw-bold mb-0">{{ examenes|selectattr('preguntas')|map(attribute='preguntas')|map('length')|sum }}</h2>
+                        </div>
+                        <div class="icon-circle bg-warning-light">
+                            <i class="fas fa-tasks fa-2x text-dark"></i>
+                        </div>
+                    </div>
+                    <p class="card-text small mt-2">Preguntas configuradas</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acciones principales del docente -->
+    <div class="row mb-4">
+        <!-- Crear Examen -->
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center p-4">
+                    <div class="icon-circle bg-success-light mx-auto mb-4">
+                        <i class="fas fa-plus-circle fa-3x text-success"></i>
+                    </div>
+                    <h4 class="card-title">Crear Examen</h4>
+                    <p class="card-text text-muted">Diseña nuevos exámenes con preguntas, casos de prueba y evaluación automática para tus cursos.</p>
+                    <a href="{{ url_for('crear_examen') }}" class="btn btn-success btn-lg px-4">
+                        <i class="fas fa-plus me-2"></i> Crear Examen
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gestionar Exámenes -->
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center p-4">
+                    <div class="icon-circle bg-info-light mx-auto mb-4">
+                        <i class="fas fa-edit fa-3x text-info"></i>
+                    </div>
+                    <h4 class="card-title">Gestionar Exámenes</h4>
+                    <p class="card-text text-muted">Administra, edita y actualiza los exámenes existentes en todos tus cursos asignados.</p>
+                    <a href="{{ url_for('gestionar_examenes') }}" class="btn btn-info btn-lg px-4">
+                        <i class="fas fa-cogs me-2"></i> Gestionar
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ver Resultados -->
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center p-4">
+                    <div class="icon-circle bg-warning-light mx-auto mb-4">
+                        <i class="fas fa-chart-line fa-3x text-warning"></i>
+                    </div>
+                    <h4 class="card-title">Dashboard de Resultados</h4>
+                    <p class="card-text text-muted">Visualiza estadísticas y analiza el rendimiento de tus estudiantes en las evaluaciones.</p>
+                    <a href="{{ url_for('ver_resultados') }}" class="btn btn-warning btn-lg px-4">
+                        <i class="fas fa-chart-bar me-2"></i> Ver Analytics
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sección de Actividad Reciente y Próximos Exámenes -->
+    <div class="row">
+        <!-- Próximos exámenes a vencer -->
+        <div class="col-lg-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-calendar-alt text-primary me-2"></i> Próximos Exámenes</h5>
+                    <a href="{{ url_for('gestionar_examenes') }}" class="btn btn-sm btn-outline-primary">Ver todos</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for examen in examenes|selectattr('fecha_cierre', 'gt', now)|sort(attribute='fecha_cierre') %}
+                            {% if loop.index <= 5 %}
+                            <a href="{{ url_for('editar_examen', examen_id=examen.id) }}" class="list-group-item list-group-item-action">
+                                <div class="d-flex w-100 justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">{{ examen.titulo }}</h6>
+                                        <small class="text-muted">
+                                            <i class="fas fa-book me-1"></i> {{ examen.horario.oferta_de_curso.curso.nombre }} 
+                                            <i class="fas fa-users ms-2 me-1"></i> {{ examen.horario.alumnos|length }} estudiantes
+                                        </small>
+                                    </div>
+                                    <span class="badge rounded-pill bg-primary">
+                                        {% set dias_restantes = (examen.fecha_cierre - now).days %}
+                                        {% if dias_restantes == 0 %}
+                                            Hoy
+                                        {% elif dias_restantes == 1 %}
+                                            Mañana
+                                        {% else %}
+                                            {{ dias_restantes }} días
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            </a>
+                            {% endif %}
+                        {% else %}
+                            <div class="list-group-item text-center text-muted py-4">
+                                <i class="fas fa-calendar-check fa-2x mb-2"></i>
+                                <p class="mb-0">No hay exámenes pendientes</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actividad reciente -->
+        <div class="col-lg-6 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-history text-primary me-2"></i> Actividad Reciente</h5>
+                    <a href="{{ url_for('ver_resultados') }}" class="btn btn-sm btn-outline-primary">Ver todas</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% set recientes_entregas = obtener_entregas_recientes(current_user.id, 5) %}
+                        {% for entrega in recientes_entregas %}
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">{{ entrega.alumno.nombre }} entregó una solución</h6>
+                                        <small class="text-muted">
+                                            <i class="fas fa-file-code me-1"></i> {{ entrega.pregunta.enunciado|truncate(40) }}
+                                            <i class="fas fa-book ms-2 me-1"></i> {{ entrega.pregunta.examen.titulo }}
+                                        </small>
+                                    </div>
+                                    <small class="text-muted">{{ entrega.fecha_entrega|timeago }}</small>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="list-group-item text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-2x mb-2"></i>
+                                <p class="mb-0">No hay actividad reciente</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .icon-circle {
+        height: 60px;
+        width: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .bg-primary-light {
+        background-color: rgba(13, 110, 253, 0.2);
+    }
+    
+    .bg-success-light {
+        background-color: rgba(25, 135, 84, 0.2);
+    }
+    
+    .bg-info-light {
+        background-color: rgba(13, 202, 240, 0.2);
+    }
+    
+    .bg-warning-light {
+        background-color: rgba(255, 193, 7, 0.2);
+    }
+    
+    .card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        border-radius: 0.75rem;
+    }
+    
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1) !important;
+    }
+    
+    .card-header {
+        border-top-left-radius: 0.75rem !important;
+        border-top-right-radius: 0.75rem !important;
+    }
+    
+    .display-6 {
+        font-size: 2rem;
+        font-weight: 300;
+    }
+    
+    .list-group-item {
+        border-left: none;
+        border-right: none;
+        padding: 1rem 1.5rem;
+    }
+    
+    .btn-lg {
+        border-radius: 0.5rem;
+    }
+</style>
+{% endblock %}

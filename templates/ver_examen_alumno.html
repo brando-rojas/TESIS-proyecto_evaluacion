@@ -1,0 +1,33 @@
+<!-- templates/ver_examen_alumno.html -->
+
+
+{% extends "base.html" %}
+
+{% block title %}
+Detalles del Examen
+{% endblock %}
+
+{% block content %}
+
+<div class="container mt-4">
+    <h2 class="mb-4">{{ examen.titulo }}</h2>
+    <p><strong>Descripción:</strong> {{ examen.descripcion }}</p>
+    <p>
+        <strong>Fecha de Publicación:</strong> {{ examen.fecha_publicacion.strftime('%Y-%m-%d %H:%M') }}<br>
+        <strong>Fecha de Cierre:</strong> {{ examen.fecha_cierre.strftime('%Y-%m-%d %H:%M') }}
+    </p>
+    <hr>
+    <h4>Preguntas:</h4>
+    {% for pregunta in examen.preguntas %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Pregunta {{ loop.index }}:</h5>
+                <p class="card-text">{{ pregunta.enunciado }}</p>
+                <p><strong>Puntaje Total:</strong> {{ pregunta.puntaje_total }}</p>
+                <p><strong>Lenguaje de Programación:</strong> {{ pregunta.lenguaje_programacion }}</p>
+                <a href="{{ url_for('responder_pregunta', pregunta_id=pregunta.id) }}" class="btn btn-success">Responder Pregunta</a>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,474 @@
+<!-- templates/editar_examen.html -->
+
+{% extends "base.html" %}
+
+{% block title %}
+    Editar Examen
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {# --- Título y Encabezado --- #}
+    <h2 class="mb-4">
+        {# Mostrar nombre del curso si está disponible #}
+        <i class="fas fa-edit"></i> Editar Examen: <span class="text-muted fw-normal">{{ curso.nombre if curso else 'Examen' }}</span>
+    </h2>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            {# --- Formulario Principal --- #}
+            {# El action apunta a la ruta de edición con el ID del examen #}
+            <form method="POST" id="examen-form" action="{{ url_for('editar_examen', examen_id=examen.id) }}">
+                {{ form.hidden_tag() }} <!-- CSRF token -->
+
+                <h4 class="mb-3 border-bottom pb-2">Detalles del Examen</h4>
+
+                {# --- Campos del Examen --- #}
+                {# Estos campos se poblarán con los datos existentes via 'obj=examen' o manualmente en la ruta #}
+                 <div class="mb-3">
+                    {{ form.titulo.label(class="form-label fw-bold") }}
+                    {{ form.titulo(class="form-control", placeholder="Título Principal del Examen") }}
+                    {% for error in form.titulo.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="mb-3">
+                    {{ form.descripcion.label(class="form-label fw-bold") }}
+                    {{ form.descripcion(class="form-control", rows="3", placeholder="Descripción general (opcional)") }}
+                    {% for error in form.descripcion.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                </div>
+                 {# Añadir otros campos del examen si están en EditarExamenForm #}
+                 {# Ejemplo: instrucciones_generales, fecha_publicacion, duracion_minutos, visibilidad #}
+
+                <div class="row mb-3">
+                     <div class="col-md-6"> {# Reducido a 6 para hacer espacio #}
+                        {{ form.fecha_cierre.label(class="form-label fw-bold") }}
+                        {# Asegúrate que el formato coincida con el esperado por datetime-local #}
+                        {{ form.fecha_cierre(class="form-control", type="datetime-local") }}
+                        {% for error in form.fecha_cierre.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-md-6"> {# Reducido a 6 #}
+                         {# Mostrar curso asociado (no editable) #}
+                        <label class="form-label fw-bold">Curso Asociado</label>
+                        <input type="text" class="form-control" value="{{ curso.codigo if curso else 'N/A' }} - {{ curso.nombre if curso else 'N/A' }}" disabled readonly title="El curso no se puede cambiar al editar el examen.">
+                         {# Podrías incluir el ID del horario si es necesario para alguna lógica #}
+                         {# <input type="hidden" name="horario_id_display" value="{{ examen.horario_id }}"> #}
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                {# --- Configuración de Análisis --- #}
+                <h4 class="mb-3 border-bottom pb-2">Configuración de Análisis</h4>
+                 <p class="text-muted small mb-3">Habilitar herramientas automáticas de revisión.</p>
+                <div class="row mb-2">
+                     {# Renderizar los checkboxes/switches para habilitar herramientas #}
+                    <div class="col-sm-6 col-md-4 col-lg-3 mb-2">
+                        <div class="form-check form-switch">
+                            {{ form.habilitar_formato(class="form-check-input") }}
+                            {{ form.habilitar_formato.label(class="form-check-label") }}
+                            {% for error in form.habilitar_formato.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-md-4 col-lg-3 mb-2">
+                         <div class="form-check form-switch">
+                            {{ form.habilitar_metricas(class="form-check-input") }}
+                            {{ form.habilitar_metricas.label(class="form-check-label") }}
+                             {% for error in form.habilitar_metricas.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                     <div class="col-sm-6 col-md-4 col-lg-3 mb-2">
+                         <div class="form-check form-switch">
+                            {{ form.habilitar_similitud(class="form-check-input") }}
+                            {{ form.habilitar_similitud.label(class="form-check-label") }}
+                             {% for error in form.habilitar_similitud.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                     <div class="col-sm-6 col-md-4 col-lg-3 mb-2">
+                         <div class="form-check form-switch">
+                            {{ form.habilitar_rendimiento(class="form-check-input") }}
+                            {{ form.habilitar_rendimiento.label(class="form-check-label") }}
+                             {% for error in form.habilitar_rendimiento.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                </div>
+                 {# Añadir umbral_similitud si está en EditarExamenForm #}
+                 {# <div class="row mb-3"> ... </div> #}
+
+
+                <hr class="my-4">
+
+                {# --- Preguntas --- #}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                     <h4 class="mb-0 border-bottom pb-2">Preguntas</h4>
+                     <button type="button" class="btn btn-primary btn-sm" id="agregar-pregunta">
+                         <i class="fas fa-plus"></i> Agregar Pregunta
+                     </button>
+                </div>
+
+                <div id="preguntas" class="mb-3">
+                    {# Bucle para renderizar preguntas existentes (pobladas por la ruta) #}
+                    {% for pregunta_field in form.preguntas %}
+                        <div class="card mb-3 shadow-sm pregunta-card">
+                            {# ID Oculto de la Pregunta #}
+                            {% if pregunta_field.id %} {# Verifica si el campo existe/tiene datos #}
+                                <input type="hidden" name="{{ pregunta_field.id.name }}" value="{{ pregunta_field.id.data }}" class="pregunta-id-field">
+                            {% endif %}
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                                <h5 class="card-title mb-0">Pregunta <span class="pregunta-numero">{{ loop.index }}</span></h5>
+                                <button type="button" class="btn btn-danger btn-sm eliminar-pregunta" title="Eliminar esta pregunta">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                {# Campos de la Pregunta #}
+                                {# Añadir otros campos si existen en PreguntaForm (titulo_pregunta, tipo_pregunta, etc) #}
+                                <div class="mb-3">
+                                    {{ pregunta_field.enunciado.label(class="form-label fw-bold") }} <span class="text-danger">*</span>
+                                    {{ pregunta_field.enunciado(class="form-control", rows="4", placeholder="Escriba aquí el enunciado completo...") }}
+                                    {% for error in pregunta_field.enunciado.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-md-6"> {# Ajustado a col-md-6 #}
+                                        {{ pregunta_field.puntaje_total.label(class="form-label fw-bold") }} <span class="text-danger">*</span>
+                                        {{ pregunta_field.puntaje_total(class="form-control", placeholder="Ej: 20.0", type="number", step="0.1", min="0") }}
+                                        {% for error in pregunta_field.puntaje_total.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                    </div>
+                                    <div class="col-md-6"> {# Ajustado a col-md-6 #}
+                                        {{ pregunta_field.lenguaje_programacion.label(class="form-label fw-bold") }} <span class="text-danger">*</span>
+                                        {{ pregunta_field.lenguaje_programacion(class="form-select") }}
+                                        {% for error in pregunta_field.lenguaje_programacion.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                    </div>
+                                </div>
+
+                                {# --- Casos de Prueba para esta pregunta --- #}
+                                <div class="d-flex justify-content-between align-items-center mb-2 mt-4 border-top pt-3">
+                                    <h6 class="mb-0 text-muted">Casos de Prueba</h6>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm agregar-caso">
+                                        <i class="fas fa-plus"></i> Agregar Caso de Prueba
+                                    </button>
+                                </div>
+                                <div class="casos_de_prueba ps-2">
+                                    {# Bucle para renderizar casos existentes (poblados por la ruta) #}
+                                    {% for caso_field in pregunta_field.casos_de_prueba %}
+                                        <div class="card mb-2 shadow-sm caso-card bg-white">
+                                            {# ID Oculto del Caso de Prueba #}
+                                            {# CORRECTO #}
+                                            {% if caso_field.id %}
+                                                <input type="hidden" name="{{ caso_field.id.name }}" value="{{ caso_field.id.data }}" class="caso-id-field">
+                                            {% endif %}
+                                            <div class="card-body p-3">
+                                                 <div class="d-flex justify-content-end mb-2">
+                                                     <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1 eliminar-caso" title="Eliminar este caso">
+                                                        <i class="fas fa-times fa-fw"></i>
+                                                     </button>
+                                                 </div>
+                                                {# --- CAMPOS DEL CASO DE PRUEBA (Según tu forms.py) --- #}
+                                                <div class="mb-2">
+                                                    {{ caso_field.descripcion.label(class="form-label form-label-sm") }}
+                                                    {{ caso_field.descripcion(class="form-control form-control-sm", placeholder="Descripción breve (Ej: Caso Borde - Vacío)") }}
+                                                    {% for error in caso_field.descripcion.errors %}<div class="invalid-feedback d-block small">{{ error }}</div>{% endfor %}
+                                                </div>
+                                                <div class="mb-2">
+                                                    {# Usar 'argumentos' según tu forms.py #}
+                                                    {{ caso_field.argumentos.label(class="form-label form-label-sm") }}
+                                                    {{ caso_field.argumentos(class="form-control form-control-sm", rows="1", placeholder='Argumentos JSON (Ej: ["10", "20"])') }}
+                                                    {% for error in caso_field.argumentos.errors %}<div class="invalid-feedback d-block small">{{ error }}</div>{% endfor %}
+                                                </div>
+                                                <div class="mb-2">
+                                                     {# Usar 'entrada' según tu forms.py #}
+                                                    {{ caso_field.entrada.label(class="form-label form-label-sm") }}
+                                                    {{ caso_field.entrada(class="form-control form-control-sm", rows="2", placeholder="Input que se pasará por STDIN") }}
+                                                    {% for error in caso_field.entrada.errors %}<div class="invalid-feedback d-block small">{{ error }}</div>{% endfor %}
+                                                </div>
+                                                <div class="mb-2">
+                                                    {{ caso_field.salida_esperada.label(class="form-label form-label-sm fw-bold") }} <span class="text-danger">*</span>
+                                                    {{ caso_field.salida_esperada(class="form-control form-control-sm", rows="2", placeholder="Salida EXACTA esperada en STDOUT") }}
+                                                    {% for error in caso_field.salida_esperada.errors %}<div class="invalid-feedback d-block small">{{ error }}</div>{% endfor %}
+                                                </div>
+                                                <div class="row">
+                                                    <div class="col-md-6 mb-2">
+                                                        {{ caso_field.puntos.label(class="form-label form-label-sm fw-bold") }} <span class="text-danger">*</span>
+                                                        {{ caso_field.puntos(class="form-control form-control-sm", placeholder="Puntos", type="number", step="0.1", min="0") }}
+                                                        {% for error in caso_field.puntos.errors %}<div class="invalid-feedback d-block small">{{ error }}</div>{% endfor %}
+                                                    </div>
+                                                    <div class="col-md-6 mb-2 d-flex align-items-center">
+                                                         <div class="form-check form-switch mt-3">
+                                                            {{ caso_field.es_oculto(class="form-check-input") }}
+                                                            {{ caso_field.es_oculto.label(class="form-check-label form-label-sm") }}
+                                                            {% for error in caso_field.es_oculto.errors %}<div class="invalid-feedback d-block small">{{ error }}</div>{% endfor %}
+                                                         </div>
+                                                    </div>
+                                                </div>
+                                                {# --- FIN CAMPOS ACTUALIZADOS --- #}
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                     {# Placeholder si no hay casos (igual) #}
+                                     <div class="no-casos-placeholder text-muted small p-2 {% if pregunta_field.casos_de_prueba %}d-none{% endif %}">
+                                        <i class="fas fa-info-circle"></i> No hay casos de prueba definidos para esta pregunta. Agrega uno.
+                                    </div>
+                                </div> {# End .casos_de_prueba #}
+                            </div> <!-- End card-body for pregunta -->
+                        </div> <!-- End pregunta-card -->
+                    {% endfor %}
+                     {# Placeholder si no hay preguntas (igual) #}
+                     <div id="no-preguntas-placeholder" class="alert alert-secondary text-center {% if form.preguntas %}d-none{% endif %}">
+                         <i class="fas fa-info-circle"></i> Aún no has agregado ninguna pregunta al examen.
+                    </div>
+                </div> <!-- End #preguntas -->
+
+                {# --- Botón de Envío --- #}
+                <div class="d-grid mt-4">
+                    <button type="submit" class="btn btn-lg btn-warning">
+                        <i class="fas fa-save"></i> Actualizar Examen
+                    </button>
+                </div>
+            </form> {# End form #}
+        </div> <!-- End card-body -->
+    </div> <!-- End card -->
+
+    {# Botón Volver (igual) #}
+    <a href="{{ url_for('gestionar_examenes') }}" class="btn btn-outline-secondary mt-3 mb-4">
+        <i class="fas fa-arrow-left"></i> Volver a Gestionar Exámenes
+    </a>
+
+</div> {# End container #}
+
+<!-- Plantillas para JS (Deben coincidir con la versión corregida de crear_examen.html) -->
+<template id="pregunta-template">
+    {# Plantilla de Pregunta (copiar desde crear_examen.html corregido) #}
+     <div class="card mb-3 shadow-sm pregunta-card">
+        {# <input type="hidden" name="preguntas-__prefix__-id" value=""> #} {# Opcional: ID oculto #}
+        <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+            <h5 class="card-title mb-0">Pregunta <span class="pregunta-numero">__prefix_num__</span></h5>
+            <button type="button" class="btn btn-danger btn-sm eliminar-pregunta" title="Eliminar esta pregunta">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        </div>
+        <div class="card-body">
+             <input type="hidden" name="preguntas-__prefix__-csrf_token" value="{{ form.csrf_token._value() }}"> {# CSRF #}
+             {# Añadir otros campos de pregunta si están en el form (titulo_pregunta, etc.) #}
+              <div class="mb-3">
+                <label class="form-label fw-bold" for="preguntas-__prefix__-enunciado">Enunciado <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="preguntas-__prefix__-enunciado" name="preguntas-__prefix__-enunciado" rows="4" placeholder="Escriba aquí el enunciado completo..."></textarea>
+            </div>
+            <div class="row mb-3">
+                 <div class="col-md-6">
+                    <label class="form-label fw-bold" for="preguntas-__prefix__-puntaje_total">Puntaje Total <span class="text-danger">*</span></label>
+                    <input class="form-control" id="preguntas-__prefix__-puntaje_total" name="preguntas-__prefix__-puntaje_total" type="number" step="0.1" placeholder="Ej: 20.0" min="0">
+                </div>
+                 <div class="col-md-6">
+                    <label class="form-label fw-bold" for="preguntas-__prefix__-lenguaje_programacion">Lenguaje <span class="text-danger">*</span></label>
+                    <select class="form-select" id="preguntas-__prefix__-lenguaje_programacion" name="preguntas-__prefix__-lenguaje_programacion">
+                        {# Asume que form.preguntas existe y tiene choices definidos #}
+                         {% if form.preguntas and form.preguntas.entries and form.preguntas.entries[0].form.lenguaje_programacion.choices %}
+                            {% for choice_val, choice_label in form.preguntas.entries[0].form.lenguaje_programacion.choices %}
+                                <option value="{{ choice_val }}">{{ choice_label }}</option>
+                            {% endfor %}
+                         {% else %}
+                            <option value="C">C</option><option value="Python">Python</option>
+                         {% endif %}
+                    </select>
+                </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2 mt-4 border-top pt-3">
+                <h6 class="mb-0 text-muted">Casos de Prueba</h6>
+                <button type="button" class="btn btn-outline-secondary btn-sm agregar-caso">
+                    <i class="fas fa-plus"></i> Agregar Caso de Prueba
+                </button>
+            </div>
+            <div class="casos_de_prueba ps-2">
+                <div class="no-casos-placeholder text-muted small p-2">
+                   <i class="fas fa-info-circle"></i> No hay casos de prueba definidos para esta pregunta. Agrega uno.
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="caso-template">
+    {# Plantilla de Caso (copiar desde crear_examen.html corregido, usando 'argumentos' y 'entrada') #}
+     <div class="card mb-2 shadow-sm caso-card bg-white">
+         {# <input type="hidden" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-id" value=""> #} {# ID oculto #}
+         <div class="card-body p-3">
+             <input type="hidden" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-csrf_token" value="{{ form.csrf_token._value() }}"> {# CSRF #}
+             <div class="d-flex justify-content-end mb-2">
+                 <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1 eliminar-caso" title="Eliminar este caso">
+                     <i class="fas fa-times fa-fw"></i>
+                 </button>
+             </div>
+            <div class="mb-2">
+                <label class="form-label form-label-sm" for="preguntas-__p_idx__-casos_de_prueba-__prefix__-descripcion">Descripción (Opcional)</label>
+                <input class="form-control form-control-sm" id="preguntas-__p_idx__-casos_de_prueba-__prefix__-descripcion" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-descripcion" type="text" placeholder="Descripción breve (Ej: Caso Borde - Vacío)">
+            </div>
+            <div class="mb-2">
+                {# Usar 'argumentos' #}
+                <label class="form-label form-label-sm" for="preguntas-__p_idx__-casos_de_prueba-__prefix__-argumentos">Argumentos (JSON Lista, Opcional)</label>
+                <textarea class="form-control form-control-sm" id="preguntas-__p_idx__-casos_de_prueba-__prefix__-argumentos" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-argumentos" rows="1" placeholder='Ej: ["10", "20"]'></textarea>
+            </div>
+            <div class="mb-2">
+                 {# Usar 'entrada' #}
+                <label class="form-label form-label-sm" for="preguntas-__p_idx__-casos_de_prueba-__prefix__-entrada">Entrada Estándar (Opcional)</label>
+                <textarea class="form-control form-control-sm" id="preguntas-__p_idx__-casos_de_prueba-__prefix__-entrada" style="white-space: pre; font-family: monospace;" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-entrada" rows="2" placeholder="Input que se pasará por STDIN"></textarea>
+            </div>
+            <div class="mb-2">
+                <label class="form-label form-label-sm fw-bold" for="preguntas-__p_idx__-casos_de_prueba-__prefix__-salida_esperada">Salida Estándar Esperada <span class="text-danger">*</span></label>
+                <textarea class="form-control form-control-sm" id="preguntas-__p_idx__-casos_de_prueba-__prefix__-salida_esperada" style="white-space: pre; font-family: monospace;" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-salida_esperada" rows="2" placeholder="Salida EXACTA esperada en STDOUT"></textarea>
+            </div>
+            <div class="row">
+                 <div class="col-md-6 mb-2">
+                    <label class="form-label form-label-sm fw-bold" for="preguntas-__p_idx__-casos_de_prueba-__prefix__-puntos">Puntos <span class="text-danger">*</span></label>
+                    <input class="form-control form-control-sm" id="preguntas-__p_idx__-casos_de_prueba-__prefix__-puntos" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-puntos" type="number" step="0.1" placeholder="Puntos" min="0">
+                </div>
+                 <div class="col-md-6 mb-2 d-flex align-items-center">
+                     <div class="form-check form-switch mt-3">
+                         <input class="form-check-input" id="preguntas-__p_idx__-casos_de_prueba-__prefix__-es_oculto" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-es_oculto" type="checkbox" value="y">
+                         <label class="form-check-label form-label-sm" for="preguntas-__p_idx__-casos_de_prueba-__prefix__-es_oculto">Caso Oculto</label>
+                     </div>
+                 </div>
+            </div>
+         </div>
+     </div>
+</template>
+
+<!-- JavaScript para manejo dinámico (IDÉNTICO A crear_examen.html) -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> {# Carga jQuery si no está en base.html #}
+<script>
+    // --- COPIAR EXACTAMENTE EL MISMO CÓDIGO JAVASCRIPT DE crear_examen.html AQUÍ ---
+     $(document).ready(function(){
+
+        function checkPlaceholders() {
+            // Placeholder para preguntas
+            if ($('#preguntas .pregunta-card').length === 0) {
+                $('#no-preguntas-placeholder').removeClass('d-none');
+            } else {
+                $('#no-preguntas-placeholder').addClass('d-none');
+            }
+            // Placeholder para casos dentro de cada pregunta
+            $('#preguntas .pregunta-card').each(function() {
+                var casosContainer = $(this).find('.casos_de_prueba');
+                if (casosContainer.find('.caso-card').length === 0) {
+                    casosContainer.find('.no-casos-placeholder').removeClass('d-none');
+                } else {
+                     casosContainer.find('.no-casos-placeholder').addClass('d-none');
+                }
+            });
+        }
+
+        // Agregar Pregunta
+        $('#agregar-pregunta').click(function(){
+            var index = $('#preguntas .pregunta-card').length;
+            var template = $('#pregunta-template').html();
+            // Reemplazar prefijos y número de pregunta
+            var newPreguntaHtml = template.replace(/__prefix__/g, index).replace(/__prefix_num__/g, index + 1);
+            $('#preguntas').append(newPreguntaHtml);
+            checkPlaceholders();
+            actualizarIndicesPreguntas(); // Re-indexar todo por si acaso
+        });
+
+        // Eliminar Pregunta
+        $(document).on('click', '.eliminar-pregunta', function(){
+            if (confirm('¿Estás seguro de que deseas eliminar esta pregunta y todos sus casos de prueba?')) {
+                $(this).closest('.pregunta-card').remove();
+                actualizarIndicesPreguntas();
+                checkPlaceholders();
+            }
+        });
+
+        // Actualizar Índices de Preguntas (y sus casos internos)
+        function actualizarIndicesPreguntas(){
+            $('#preguntas .pregunta-card').each(function(index){
+                var preguntaCard = $(this);
+                preguntaCard.find('.pregunta-numero').text(index + 1);
+                // Actualizar name/id de campos de la pregunta
+                preguntaCard.find('[name^="preguntas-"], [id^="preguntas-"]').each(function(){
+                    var element = $(this);
+                    ['name', 'id'].forEach(function(attr) {
+                        var oldVal = element.attr(attr);
+                        if (oldVal) {
+                            var newVal = oldVal.replace(/preguntas-\d+/, 'preguntas-' + index);
+                            element.attr(attr, newVal);
+                            // Actualizar 'for' del label asociado si el id cambió
+                            if (attr === 'id') {
+                                // Buscar el label específico para este input/textarea/select
+                                var labelFor = preguntaCard.find('label[for="' + oldVal + '"]');
+                                if(labelFor.length) { // Asegurarse que el label existe
+                                     labelFor.attr('for', newVal);
+                                }
+                            }
+                        }
+                    });
+                });
+                // Actualizar índices de los casos dentro de esta pregunta
+                actualizarIndicesCasos(preguntaCard);
+            });
+        }
+
+        // Agregar Caso de Prueba
+        $(document).on('click', '.agregar-caso', function(){
+            var preguntaCard = $(this).closest('.pregunta-card');
+            var casosContainer = preguntaCard.find('.casos_de_prueba');
+            var preguntaIndex = $('#preguntas .pregunta-card').index(preguntaCard);
+            var casoIndex = casosContainer.find('.caso-card').length;
+            var template = $('#caso-template').html();
+
+            // Reemplazar prefijos de pregunta y caso
+            var newCasoHtml = template.replace(/__p_idx__/g, preguntaIndex).replace(/__prefix__/g, casoIndex);
+            casosContainer.append(newCasoHtml);
+            actualizarIndicesCasos(preguntaCard); // Re-indexar casos de esta pregunta
+            checkPlaceholders();
+        });
+
+        // Eliminar Caso de Prueba
+        $(document).on('click', '.eliminar-caso', function(){
+             if (confirm('¿Estás seguro de que deseas eliminar este caso de prueba?')) {
+                var preguntaCard = $(this).closest('.pregunta-card');
+                $(this).closest('.caso-card').remove();
+                actualizarIndicesCasos(preguntaCard);
+                checkPlaceholders();
+            }
+        });
+
+        // Actualizar Índices de Casos de Prueba dentro de una Pregunta
+        function actualizarIndicesCasos(preguntaCard){
+            var preguntaIndex = $('#preguntas .pregunta-card').index(preguntaCard);
+            preguntaCard.find('.casos_de_prueba .caso-card').each(function(casoIndex){
+                var casoCard = $(this);
+                // Actualizar name/id de campos del caso
+                casoCard.find('[name*="casos_de_prueba-"], [id*="casos_de_prueba-"]').each(function(){
+                    var element = $(this);
+                     ['name', 'id'].forEach(function(attr) {
+                         var oldVal = element.attr(attr);
+                         if (oldVal) {
+                            // Reemplazar ambos índices
+                            var newVal = oldVal.replace(/preguntas-\d+/, 'preguntas-' + preguntaIndex)
+                                             .replace(/casos_de_prueba-\d+/, 'casos_de_prueba-' + casoIndex);
+                            element.attr(attr, newVal);
+                            // Actualizar 'for' del label asociado
+                            if (attr === 'id') {
+                                var labelFor = casoCard.find('label[for="' + oldVal + '"]');
+                                if(labelFor.length) {
+                                     labelFor.attr('for', newVal);
+                                }
+                            }
+                         }
+                     });
+                });
+            });
+        }
+
+        // Inicialización al cargar la página
+        checkPlaceholders();
+        // Reindexar al cargar en modo edición para asegurar consistencia
+        if ($('#preguntas .pregunta-card').length > 0) {
+             actualizarIndicesPreguntas();
+        }
+
+         // Prevenir doble submit (opcional)
+        $('#examen-form').submit(function() {
+            $(this).find('button[type="submit"]').prop('disabled', true).prepend('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>');
+        });
+
+    });
+</script>
+
+{% endblock %}

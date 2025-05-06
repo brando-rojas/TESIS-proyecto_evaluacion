@@ -1,0 +1,668 @@
+{% extends "base.html" %}
+
+{% block title %}
+Responder Pregunta
+{% endblock %}
+
+{% block head %}
+
+<!-- Estilos principales de CodeMirror -->
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.css">
+
+<!-- Temas disponibles -->
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/theme/dracula.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/theme/monokai.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/theme/material.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/theme/nord.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/theme/eclipse.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/theme/solarized.min.css">
+
+<!-- Addons esenciales -->
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/dialog/dialog.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/fold/foldgutter.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/hint/show-hint.min.css">
+
+<style>
+    /* Estilo mejorado para el editor */
+    .CodeMirror {
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        height: 430px;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Ocultar el campo original */
+    #codigo_fuente {
+        display: none;
+    }
+    
+    /* Estilos para las opciones del editor */
+    .editor-options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 10px;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        border: 1px solid #dee2e6;
+    }
+    
+    .editor-options select,
+    .editor-options button {
+        padding: 6px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        background-color: white;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .editor-options select:hover,
+    .editor-options button:hover {
+        background-color: #e9ecef;
+    }
+    
+    .editor-options button {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    /* Estado del editor */
+    #editor-status {
+        margin-left: auto;
+        color: #6c757d;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: 4px;
+        background-color: white;
+        border: 1px solid #ced4da;
+    }
+
+    /* Separador de grupos de botones */
+    .button-group {
+        display: flex;
+        gap: 5px;
+        border-right: 1px solid #dee2e6;
+        padding-right: 10px;
+        margin-right: 5px;
+    }
+    
+    /* Estilo para el botón activo */
+    .active-button {
+        background-color: #e9ecef;
+        border-color: #adb5bd;
+    }
+    
+    /* Información de línea y columna */
+    #cursor-position {
+        font-size: 13px;
+        color: #6c757d;
+        padding: 6px 12px;
+        background-color: white;
+        border-radius: 4px;
+        border: 1px solid #ced4da;
+    }
+    
+    /* Sección de ayuda */
+    .commands-help {
+        margin-top: 10px;
+        margin-bottom: 20px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 15px;
+        background-color: #f8f9fa;
+    }
+    
+    .commands-help h5 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        color: #495057;
+    }
+    
+    .commands-help .keyboard-shortcut {
+        background-color: #e9ecef;
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 90%;
+        border: 1px solid #ced4da;
+    }
+    
+    .commands-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .commands-table th, .commands-table td {
+        padding: 8px;
+        border-bottom: 1px solid #dee2e6;
+        text-align: left;
+    }
+    
+    .commands-table th {
+        background-color: #e9ecef;
+        font-weight: 600;
+    }
+    
+    .help-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        padding: 8px 15px;
+        background-color: #e9ecef;
+        border-radius: 4px;
+        margin-bottom: 5px;
+        transition: background-color 0.2s;
+    }
+    
+    .help-toggle:hover {
+        background-color: #dee2e6;
+    }
+    
+    .help-toggle i {
+        transition: transform 0.3s;
+    }
+    
+    .help-toggle.collapsed i {
+        transform: rotate(-90deg);
+    }
+    
+    .help-content {
+        overflow: hidden;
+        transition: max-height 0.3s ease-out;
+        max-height: 1000px;
+    }
+    
+    .help-content.collapsed {
+        max-height: 0;
+    }
+    
+    /* Estilos para el modo expandido personalizado */
+    .editor-container {
+        position: relative;
+        transition: height 0.3s ease;
+    }
+    
+    .editor-expanded {
+        height: 600px !important; /* Mayor altura pero no pantalla completa */
+    }
+    
+    /* Botón flotante para salir del modo ampliado */
+    .exit-expanded-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 100;
+        background-color: rgba(255, 255, 255, 0.8);
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        padding: 5px 10px;
+        font-size: 12px;
+        cursor: pointer;
+        display: none;
+        align-items: center;
+        gap: 5px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    }
+    
+    .exit-expanded-btn:hover {
+        background-color: #e9ecef;
+    }
+    
+    /* Ajustar el estilo de pantalla completa nativo de CodeMirror */
+    .CodeMirror-fullscreen {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        height: auto;
+        z-index: 1050; /* Mayor que Bootstrap modals */
+    }
+</style>
+
+{% endblock %}
+
+{% block content %}
+
+<div class="container mt-4">
+    <h2 class="mb-4">Responder Examen: {{ pregunta.examen.titulo }}</h2>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Pregunta:</h5>
+        <p class="card-text">{{ pregunta.enunciado }}</p>
+        <p><strong>Puntaje Total:</strong> {{ pregunta.puntaje_total }}</p>
+        <p><strong>Lenguaje de Programación:</strong> {{ pregunta.lenguaje_programacion }}</p>
+    </div>
+</div>
+
+<!-- Sección de ayuda con atajos de teclado y comandos -->
+
+<div class="commands-help">
+    <div class="help-toggle">
+        <h5><i class="fas fa-keyboard"></i> Atajos de teclado y comandos disponibles</h5>
+        <i class="fas fa-chevron-down"></i>
+    </div>
+
+<div class="help-content">
+    <table class="commands-table">
+        <thead>
+            <tr>
+                <th width="25%">Acción</th>
+                <th width="25%">Atajo de teclado</th>
+                <th>Descripción</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Buscar</td>
+                <td><span class="keyboard-shortcut">Ctrl</span> + <span class="keyboard-shortcut">F</span></td>
+                <td>Abre el cuadro de búsqueda para encontrar texto</td>
+            </tr>
+            <tr>
+                <td>Comentar/Descomentar</td>
+                <td><span class="keyboard-shortcut">Ctrl</span> + <span class="keyboard-shortcut">/</span></td>
+                <td>Comenta o descomenta las líneas seleccionadas</td>
+            </tr>
+            <tr>
+                <td>Duplicar línea</td>
+                <td><span class="keyboard-shortcut">Ctrl</span> + <span class="keyboard-shortcut">D</span></td>
+                <td>Duplica la línea actual</td>
+            </tr>
+            <tr>
+                <td>Indentar</td>
+                <td><span class="keyboard-shortcut">Tab</span></td>
+                <td>Indenta el texto seleccionado o inserta 4 espacios</td>
+            </tr>
+            <tr>
+                <td>Reducir indentación</td>
+                <td><span class="keyboard-shortcut">Shift</span> + <span class="keyboard-shortcut">Tab</span></td>
+                <td>Reduce la indentación del texto seleccionado</td>
+            </tr>
+            <tr>
+                <td>Ampliar editor</td>
+                <td><span class="keyboard-shortcut">Alt</span> + <span class="keyboard-shortcut">M</span></td>
+                <td>Aumenta el tamaño del editor sin ocultar otros elementos</td>
+            </tr>
+            <tr>
+                <td>Autocompletar</td>
+                <td><span class="keyboard-shortcut">Ctrl</span> + <span class="keyboard-shortcut">Space</span></td>
+                <td>Muestra sugerencias de autocompletado basadas en el código</td>
+            </tr>
+            <tr>
+                <td>Plegar/Desplegar código</td>
+                <td>Click en los números de línea</td>
+                <td>Pliega o despliega bloques de código (funciones, bucles, etc.)</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+</div>
+
+<form method="POST" enctype="multipart/form-data" novalidate>
+    {{ form.hidden_tag() }}
+
+<div class="mb-3">
+    {{ form.codigo_fuente.label(class="form-label") }}
+    
+    <!-- Opciones del editor -->
+    <div class="editor-options">
+        <!-- Grupo 1: Apariencia -->
+        <div class="button-group">
+            <select id="theme-selector" title="Cambiar tema">
+                <option value="dracula">Dracula</option>
+                <option value="monokai">Monokai</option>
+                <option value="material">Material</option>
+                <option value="nord">Nord</option>
+                <option value="eclipse">Eclipse</option>
+                <option value="solarized light">Solarized Claro</option>
+            </select>
+            
+            <select id="font-size" title="Tamaño de letra">
+                <option value="12">12px</option>
+                <option value="14" selected>14px</option>
+                <option value="16">16px</option>
+                <option value="18">18px</option>
+            </select>
+        </div>
+        
+        <!-- Grupo 2: Edición -->
+        <div class="button-group">
+            <button type="button" id="btn-find" title="Buscar (Ctrl+F)">
+                <i class="fas fa-search"></i> Buscar
+            </button>
+            
+            <button type="button" id="btn-comment" title="Comentar/Descomentar (Ctrl+/)">
+                <i class="fas fa-comment"></i> Comentar
+            </button>
+
+            <button type="button" id="btn-duplicate" title="Duplicar línea (Ctrl+D)">
+                <i class="fas fa-copy"></i> Duplicar
+            </button>
+        </div>
+        
+        <!-- Grupo 3: Visualización -->
+        <div class="button-group">
+            <button type="button" id="btn-wrap" title="Ajustar líneas">
+                <i class="fas fa-align-justify"></i> Ajustar
+            </button>
+            
+            <button type="button" id="btn-expand" title="Ampliar editor (Alt+M)">
+                <i class="fas fa-expand-alt"></i> Ampliar
+            </button>
+        </div>
+        
+        <!-- Información y estado -->
+        <span id="cursor-position">Línea: 1, Col: 1</span>
+        <span id="editor-status">Sin cambios</span>
+    </div>
+    
+    <!-- Campo oculto para almacenar el código fuente -->
+    {{ form.codigo_fuente() }}
+    
+    <!-- Contenedor para el editor de CodeMirror -->
+    <div id="editor-container" class="editor-container">
+        <!-- Botón para salir del modo ampliado -->
+        <button type="button" id="exit-expanded-btn" class="exit-expanded-btn">
+            <i class="fas fa-compress-alt"></i> Reducir tamaño
+        </button>
+    </div>
+    
+    {% for error in form.codigo_fuente.errors %}
+        <div class="text-danger">{{ error }}</div>
+    {% endfor %}
+</div>
+
+<div class="mb-3">
+    {{ form.archivo.label(class="form-label") }}
+    {{ form.archivo(class="form-control") }}
+    {% for error in form.archivo.errors %}
+        <div class="text-danger">{{ error }}</div>
+    {% endfor %}
+</div>
+
+<button type="submit" class="btn btn-success">
+    <i class="fas fa-check"></i> Enviar Respuesta
+</button>
+
+
+</form>
+
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+
+<!-- Scripts principales de CodeMirror -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.js"></script>
+
+<!-- Modos de lenguaje -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/clike/clike.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/python/python.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/javascript/javascript.min.js"></script>
+
+<!-- Addons esenciales -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/edit/matchbrackets.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/edit/closebrackets.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/comment/comment.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/selection/active-line.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/fold/foldcode.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/fold/foldgutter.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/fold/brace-fold.min.js"></script>
+
+<!-- Buscar y reemplazar -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/dialog/dialog.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/search/searchcursor.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/search/search.min.js"></script>
+
+<!-- Hint/Autocompletado -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/hint/show-hint.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/hint/anyword-hint.min.js"></script>
+
+<script>
+    // Función para determinar el modo según el lenguaje
+    function getCodeMirrorMode(language) {
+        language = (language || "").toLowerCase();
+        
+        if (language === "python" || language === "py") {
+            return "text/x-python";
+        } else if (language === "c" || language === "c++") {
+            return "text/x-c++src";
+        } else if (language === "java") {
+            return "text/x-java";
+        } else if (language === "javascript" || language === "js") {
+            return "text/javascript";
+        } else {
+            return "text/x-csrc";  // Modo por defecto
+        }
+    }
+    
+    // Esperar a que el DOM esté completamente cargado
+    document.addEventListener("DOMContentLoaded", function() {
+        // Obtener el contenedor del editor
+        var editorContainer = document.getElementById("editor-container");
+        var inputField = document.getElementById("codigo_fuente");
+        var editorStatus = document.getElementById("editor-status");
+        var cursorPosition = document.getElementById("cursor-position");
+        var exitExpandedBtn = document.getElementById("exit-expanded-btn");
+        
+        // Asegurarse de que el contenedor existe
+        if (!editorContainer || !inputField) {
+            console.error("No se encontró el contenedor del editor o el campo de entrada.");
+            return;
+        }
+        
+        // Obtener el lenguaje de programación
+        var language = "{{ pregunta.lenguaje_programacion }}";
+        
+        // Variable para rastrear el estado de ajuste de líneas y expandido
+        var lineWrappingEnabled = false;
+        var editorExpanded = false;
+        
+        // Crear la instancia de CodeMirror con más opciones
+        var editor = CodeMirror(editorContainer, {
+            lineNumbers: true,
+            mode: getCodeMirrorMode(language),
+            theme: "dracula",
+            indentUnit: 4,
+            tabSize: 4,
+            lineWrapping: lineWrappingEnabled,
+            autoCloseBrackets: true,
+            matchBrackets: true,
+            styleActiveLine: true,
+            value: "",
+            foldGutter: true,
+            gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
+            extraKeys: {
+                "Ctrl-Space": "autocomplete",
+                "Ctrl-/": "toggleComment",
+                "Ctrl-F": "findPersistent",
+                "Alt-M": function(cm) {
+                    toggleExpandedMode();
+                },
+                "Ctrl-D": function(cm) {
+                    // Duplicar línea actual
+                    var cursor = cm.getCursor();
+                    var line = cm.getLine(cursor.line);
+                    cm.replaceRange(line + "\n", { line: cursor.line, ch: 0 }, { line: cursor.line, ch: 0 });
+                },
+                "Tab": function(cm) {
+                    if (cm.somethingSelected()) {
+                        cm.indentSelection("add");
+                    } else {
+                        cm.replaceSelection("    ", "end", "+input");
+                    }
+                },
+                "Shift-Tab": function(cm) {
+                    if (cm.somethingSelected()) {
+                        cm.indentSelection("subtract");
+                    }
+                }
+            }
+        });
+        
+        // Función para alternar el modo expandido (pero no pantalla completa)
+        function toggleExpandedMode() {
+            editorExpanded = !editorExpanded;
+            
+            if (editorExpanded) {
+                // Expandir el editor
+                editorContainer.classList.add("editor-expanded");
+                document.querySelector(".CodeMirror").style.height = "600px";
+                exitExpandedBtn.style.display = "flex";
+                document.getElementById("btn-expand").innerHTML = '<i class="fas fa-compress-alt"></i> Reducir';
+                document.getElementById("btn-expand").classList.add("active-button");
+            } else {
+                // Contraer el editor
+                editorContainer.classList.remove("editor-expanded");
+                document.querySelector(".CodeMirror").style.height = "430px";
+                exitExpandedBtn.style.display = "none";
+                document.getElementById("btn-expand").innerHTML = '<i class="fas fa-expand-alt"></i> Ampliar';
+                document.getElementById("btn-expand").classList.remove("active-button");
+            }
+            
+            // Refrescar el editor para asegurar que se muestra correctamente
+            editor.refresh();
+        }
+        
+        // Establecer el valor inicial si existe
+        var initialCode = "{{ form.codigo_fuente.data|default('', true)|e|replace('\n', '\\n')|replace('\"', '\\\"') }}";
+        if (initialCode && initialCode !== "None") {
+            editor.setValue(initialCode);
+        }
+        
+        // Variable para rastrear si hay cambios no guardados
+        var hasUnsavedChanges = false;
+        
+        // Escuchar cambios en el editor para actualizar el campo oculto
+        editor.on("change", function() {
+            inputField.value = editor.getValue();
+            hasUnsavedChanges = true;
+            editorStatus.textContent = "Cambios sin guardar";
+            editorStatus.style.color = "#dc3545";
+        });
+        
+        // Actualizar la posición del cursor
+        editor.on("cursorActivity", function() {
+            var cursor = editor.getCursor();
+            cursorPosition.textContent = "Línea: " + (cursor.line + 1) + ", Col: " + (cursor.ch + 1);
+        });
+        
+        // Asegurar que el campo oculto se actualiza al enviar el formulario
+        document.querySelector("form").addEventListener("submit", function() {
+            inputField.value = editor.getValue();
+            editorStatus.textContent = "Guardando...";
+            editorStatus.style.color = "#28a745";
+        });
+        
+        // Cambiar tema
+        document.getElementById("theme-selector").addEventListener("change", function() {
+            editor.setOption("theme", this.value);
+        });
+        
+        // Cambiar tamaño de fuente
+        document.getElementById("font-size").addEventListener("change", function() {
+            var size = this.value + "px";
+            editorContainer.querySelector(".CodeMirror").style.fontSize = size;
+            editor.refresh();
+        });
+        
+        // Botón de búsqueda
+        document.getElementById("btn-find").addEventListener("click", function() {
+            editor.execCommand("findPersistent");
+        });
+        
+        // Botón para comentar/descomentar
+        document.getElementById("btn-comment").addEventListener("click", function() {
+            editor.execCommand("toggleComment");
+        });
+        
+        // Botón para duplicar línea
+        document.getElementById("btn-duplicate").addEventListener("click", function() {
+            var cursor = editor.getCursor();
+            var line = editor.getLine(cursor.line);
+            editor.replaceRange(line + "\n", { line: cursor.line, ch: 0 }, { line: cursor.line, ch: 0 });
+        });
+        
+        // Botón para ajustar líneas
+        document.getElementById("btn-wrap").addEventListener("click", function() {
+            lineWrappingEnabled = !lineWrappingEnabled;
+            editor.setOption("lineWrapping", lineWrappingEnabled);
+            
+            // Toggle clase activa
+            this.classList.toggle("active-button");
+            
+            // Actualizar el texto del botón
+            if (lineWrappingEnabled) {
+                this.innerHTML = '<i class="fas fa-align-justify"></i> No ajustar';
+            } else {
+                this.innerHTML = '<i class="fas fa-align-justify"></i> Ajustar';
+            }
+        });
+        
+        // Botón para expandir editor
+        document.getElementById("btn-expand").addEventListener("click", toggleExpandedMode);
+        
+        // Botón para salir del modo expandido
+        exitExpandedBtn.addEventListener("click", toggleExpandedMode);
+        
+        // Guardar automáticamente cada 30 segundos
+        setInterval(function() {
+            if (hasUnsavedChanges) {
+                inputField.value = editor.getValue();
+                editorStatus.textContent = "Guardado automáticamente";
+                editorStatus.style.color = "#28a745";
+                
+                // Después de 2 segundos, volver al estado normal
+                setTimeout(function() {
+                    editorStatus.textContent = "Cambios sin guardar";
+                    editorStatus.style.color = "#dc3545";
+                }, 2000);
+            }
+        }, 30000);
+        
+        // Controlar la sección de ayuda (mostrar/ocultar)
+        var helpToggle = document.querySelector('.help-toggle');
+        var helpContent = document.querySelector('.help-content');
+        
+        helpToggle.addEventListener('click', function() {
+            helpToggle.classList.toggle('collapsed');
+            helpContent.classList.toggle('collapsed');
+        });
+        
+        // Forzar un refresh para asegurar que el editor se muestra correctamente
+        setTimeout(function() {
+            editor.refresh();
+        }, 100);
+    });
+</script>
+
+{% endblock %}
