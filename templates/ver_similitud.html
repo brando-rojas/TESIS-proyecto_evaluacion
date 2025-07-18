@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}Resultados de Similitud - {{ examen.titulo }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0"><i class="fas fa-user-secret text-warning"></i> Resultados de Similitud para "{{ examen.titulo }}"</h2>
+        <a href="{{ url_for('gestionar_examenes') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Volver a Exámenes</a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            {% if resultados %}
+            <p class="text-muted">Se encontraron {{ resultados|length }} pares de entregas con similitud. Utiliza los botones de acción para comparar.</p>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 25%;">Ranking de Similitud</th>
+                            <th>Estudiante 1</th>
+                            <th>Estudiante 2</th>
+                            <th class="text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for res in resultados %}
+                        {% set entrega1 = entregas_dict.get(res.entrega_id_1) %}
+                        {% set entrega2 = entregas_dict.get(res.entrega_id_2) %}
+                        {% if entrega1 and entrega2 %}
+                        <tr>
+                            <td>
+                                <div class="progress" style="height: 25px;" title="{{ "%.2f"|format(res.porcentaje_similitud) }}% de similitud">
+                                    <div class="progress-bar {% if res.porcentaje_similitud > 80 %}bg-danger{% elif res.porcentaje_similitud > 50 %}bg-warning text-dark{% else %}bg-info{% endif %}" 
+                                         role="progressbar" style="width: {{ res.porcentaje_similitud }}%;" 
+                                         aria-valuenow="{{ res.porcentaje_similitud }}" aria-valuemin="0" aria-valuemax="100">
+                                        <strong>{{ "%.1f"|format(res.porcentaje_similitud) }}%</strong>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ entrega1.alumno.nombre }}<br><small class="text-muted">{{ entrega1.alumno.email }}</small></td>
+                            <td>{{ entrega2.alumno.nombre }}<br><small class="text-muted">{{ entrega2.alumno.email }}</small></td>
+                            <td class="text-center">
+                                <div class="btn-group">
+                                    <button class="btn btn-secondary btn-sm" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#sideBySideModal"
+                                            data-nombre1="{{ entrega1.alumno.nombre }}"
+                                            data-nombre2="{{ entrega2.alumno.nombre }}"
+                                            data-codigo1="{{ entrega1.codigo_fuente|e }}"
+                                            data-codigo2="{{ entrega2.codigo_fuente|e }}"
+                                            data-similitud="{{ '%.2f'|format(res.porcentaje_similitud) }}">
+                                        <i class="fas fa-columns"></i> Lado a Lado
+                                    </button>
+                                    <button class="btn btn-primary btn-sm" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#diffModal"
+                                            data-nombre1="{{ entrega1.alumno.nombre }}"
+                                            data-nombre2="{{ entrega2.alumno.nombre }}"
+                                            data-codigo1="{{ entrega1.codigo_fuente|e }}"
+                                            data-codigo2="{{ entrega2.codigo_fuente|e }}"
+                                            data-similitud="{{ '%.2f'|format(res.porcentaje_similitud) }}">
+                                        <i class="fas fa-exchange-alt"></i> Ver Diff
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-success text-center">
+                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                <h5 class="alert-heading">¡Sin Coincidencias!</h5>
+                <p class="mb-0">No se encontraron similitudes significativas.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal Lado a Lado -->
+<div class="modal fade" id="sideBySideModal" tabindex="-1" aria-labelledby="sideBySideModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="sideBySideModalLabel">Comparación de Código (Lado a Lado)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body bg-light">
+                <div class="row h-100">
+                    <div class="col-md-6 d-flex flex-column">
+                        <h6 id="sbs-header1" class="border-bottom pb-2 mb-2"></h6>
+                        <div class="code-container flex-grow-1">
+                            <pre><code id="sbs-code1" class="language-c"></code></pre>
+                        </div>
+                    </div>
+                    <div class="col-md-6 d-flex flex-column">
+                        <h6 id="sbs-header2" class="border-bottom pb-2 mb-2"></h6>
+                        <div class="code-container flex-grow-1">
+                            <pre><code id="sbs-code2" class="language-c"></code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span class="badge bg-info fs-6 me-auto" id="sbs-similarity"></span>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Diff -->
+<div class="modal fade" id="diffModal" tabindex="-1" aria-labelledby="diffModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="diffModalLabel">Comparación de Diferencias (Diff)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="diff-output" class="border rounded p-3 bg-light" style="overflow:auto; height:100%;"></div>
+            </div>
+            <div class="modal-footer">
+                <span class="badge bg-info fs-6 me-auto" id="diff-similarity"></span>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css"/>
+<style>
+    .code-container {
+        background-color: #282c34;
+        color: #abb2bf;
+        border: 1px solid #3a3f4b;
+        border-radius: .25rem;
+        padding: 1rem;
+        overflow: auto;
+        height: 100%;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Modal Lado a Lado
+    const sideBySideModal = document.getElementById('sideBySideModal');
+    if (sideBySideModal) {
+        sideBySideModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const nombre1 = button.getAttribute('data-nombre1');
+            const codigo1 = button.getAttribute('data-codigo1');
+            const nombre2 = button.getAttribute('data-nombre2');
+            const codigo2 = button.getAttribute('data-codigo2');
+            const similitud = button.getAttribute('data-similitud');
+
+            sideBySideModal.querySelector('#sbs-header1').textContent = nombre1;
+            sideBySideModal.querySelector('#sbs-code1').textContent = codigo1;
+            sideBySideModal.querySelector('#sbs-header2').textContent = nombre2;
+            sideBySideModal.querySelector('#sbs-code2').textContent = codigo2;
+            sideBySideModal.querySelector('#sbs-similarity').textContent = `Similitud: ${similitud}%`;
+
+            hljs.highlightElement(sideBySideModal.querySelector('#sbs-code1'));
+            hljs.highlightElement(sideBySideModal.querySelector('#sbs-code2'));
+        });
+    }
+
+    // Modal Diff
+    const diffModal = document.getElementById('diffModal');
+    if (diffModal) {
+        diffModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const nombre1 = button.getAttribute('data-nombre1');
+            const codigo1 = button.getAttribute('data-codigo1');
+            const nombre2 = button.getAttribute('data-nombre2');
+            const codigo2 = button.getAttribute('data-codigo2');
+            const similitud = button.getAttribute('data-similitud');
+			
+			diffModal.querySelector('#diffModalLabel').textContent = `Comparación: ${nombre1} vs. ${nombre2}`;
+            diffModal.querySelector('#diff-similarity').textContent = `Similitud: ${similitud}%`;
+
+            const diffOutput = diffModal.querySelector('#diff-output');
+
+            // Generar el diff en formato git diff
+            const diff = Diff.createTwoFilesPatch(
+                nombre1,
+                nombre2,
+                codigo1,
+                codigo2,
+                '',
+                '',
+                { context: 3 }
+            );
+
+            // Limpiar cualquier diff anterior
+            diffOutput.innerHTML = '';
+
+            // Crear instancia de Diff2HtmlUI
+            const targetElement = diffOutput;
+            const configuration = {
+                drawFileList: false,
+                outputFormat: 'side-by-side', // Puedes usar 'line-by-line' si prefieres ese formato
+                matching: 'lines',
+                highlight: true,
+                synchronisedScroll: true,
+            };
+
+            const diff2htmlUi = new Diff2HtmlUI(targetElement, diff, configuration);
+            diff2htmlUi.draw();
+            diff2htmlUi.highlightCode();
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -11,6 +11,136 @@
 {% endblock %}
 
 {% block content %}
+<style>
+    .rubrica-editor-container {
+        background-color: #fcfdff; /* Un fondo muy sutil para la sección */
+        padding: 15px;
+        border: 1px solid #e0e0e0;
+        border-radius: 0.375rem; /* Similar a los cards de Bootstrap */
+        margin-top: 1.5rem !important; /* Asegurar espacio arriba */
+    }
+
+    .rubrica-editor-container h6.fw-bold { /* Título "Rúbrica de Evaluación" */
+        color: #333;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #eee;
+        margin-bottom: 1rem !important;
+    }
+
+    .rubrica-editor-container .form-label-sm {
+        font-size: 0.8rem; /* Labels un poco más pequeñas */
+        margin-bottom: 0.2rem;
+        color: #555;
+    }
+
+    .rubrica-editor-container .tipo-rubrica-selector {
+        max-width: 300px; /* Limitar ancho del selector */
+    }
+
+    .rubrica-editor-container .rubrica-modo-ayuda {
+        font-style: italic;
+        font-size: 0.85em;
+        margin-bottom: 1rem !important; /* Más espacio después de la ayuda */
+    }
+
+    .rubrica-tabla-dinamica {
+        margin-bottom: 1rem !important; /* Espacio debajo de la tabla */
+        border: 1px solid #dee2e6; /* Borde de Bootstrap para la tabla */
+    }
+
+    .rubrica-tabla-dinamica th,
+    .rubrica-tabla-dinamica td {
+        vertical-align: top; /* Mejor para textareas */
+        font-size: 0.875em; /* Un poco más pequeño para compacidad */
+        padding: 0.5rem; /* Padding consistente */
+    }
+
+    .rubrica-tabla-dinamica thead th {
+        background-color: #f8f9fa; /* Fondo estándar de Bootstrap para thead */
+        font-weight: 600; /* Texto en negrita para encabezados */
+        border-bottom-width: 2px; /* Línea inferior más gruesa */
+        white-space: nowrap; /* Evitar que los títulos de columna largos se rompan mucho */
+    }
+
+    /* Estilos para los inputs y textareas dentro de la tabla */
+    .rubrica-tabla-dinamica input[type="text"],
+    .rubrica-tabla-dinamica input[type="number"],
+    .rubrica-tabla-dinamica textarea {
+        width: 100%;
+        border: 1px solid #ced4da;
+        padding: 0.3rem 0.6rem; /* Ajustar padding */
+        font-size: 0.875rem;
+        border-radius: 0.25rem; /* Bootstrap's default border-radius */
+        box-sizing: border-box; /* Para que el padding no aumente el ancho */
+    }
+
+    .rubrica-tabla-dinamica textarea {
+        min-height: 60px; /* Un poco más de altura para descripciones */
+        resize: vertical;
+    }
+
+    .rubrica-tabla-dinamica input[type="number"].criterio-max-puntaje-input,
+    .rubrica-tabla-dinamica input[type="number"].criterio-simple-puntaje {
+        text-align: center;
+    }
+    .rubrica-tabla-dinamica input[type="number"].puntaje-nivel-input {
+        max-width: 70px; /* Para que el input de puntaje de nivel sea pequeño */
+        font-size: 0.8em;
+        padding: 0.2rem 0.4rem;
+    }
+
+    .rubrica-tabla-dinamica th.nivel-header-cell .input-group {
+        margin-bottom: 0; /* Quitar margen inferior del input-group en header */
+    }
+    .rubrica-tabla-dinamica th.nivel-header-cell .nivel-nombre-input {
+        font-weight: normal; /* Que el nombre del nivel no sea tan negrita */
+        border-bottom-right-radius: 0; /* Para que encaje con el botón de eliminar */
+        border-top-right-radius: 0;
+    }
+    .rubrica-tabla-dinamica th.nivel-header-cell .eliminar-columna-nivel-rubrica {
+        border-bottom-left-radius: 0;
+        border-top-left-radius: 0;
+    }
+
+
+    .rubrica-tabla-dinamica td.descripcion-cell {
+        min-width: 150px; /* Ancho mínimo para celdas de descripción de nivel */
+    }
+
+    .rubrica-tabla-dinamica td.actions-cell-criterio, /* Para la celda de acción de fila de criterio */
+    .rubrica-tabla-dinamica th.actions-header-cell { /* Para el encabezado de acción */
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    /* Botones de acción */
+    .rubrica-editor-container .accion-btn { /* Aplica a todos los botones con esta clase */
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
+        margin-left: 0.25rem; /* Pequeño margen entre botones */
+    }
+    .rubrica-tabla-dinamica .btn-danger.accion-btn { /* Botones de eliminar en la tabla */
+        padding: 0.15rem 0.35rem; /* Hacerlos un poco más pequeños */
+        font-size: 0.75rem;
+    }
+    .rubrica-tabla-dinamica .eliminar-columna-nivel-rubrica {
+        font-size: 0.8em; /* Para el icono de X en el header del nivel */
+    }
+
+    /* Estilo para el JSON generado (ya lo tenías, solo para mantenerlo agrupado) */
+    .rubrica-json-output {
+        font-size: 0.8em;
+        max-height: 150px; /* Un poco menos alto */
+        padding: 10px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        margin-top: 0.5rem; /* Espacio arriba */
+    }
+    .ck-editor__editable_inline {
+        min-height: 200px; /* Altura mínima para el editor de enunciado */
+    }
+</style>
+
 <div class="container mt-4">
     {# --- Título --- #}
     <h2 class="mb-4">
@@ -26,7 +156,6 @@
             {# --- Formulario Principal --- #}
             <form method="POST" id="examen-form"
                   action="{% if editar %}{{ url_for('editar_examen', examen_id=examen.id) }}{% else %}{{ url_for('crear_examen') }}{% endif %}"
-                  {# Pasar estado inicial del flag global. Asegurarse que 'global_formato_habilitado' exista en el contexto al editar #}
                   data-global-formato-habilitado="{{ 'true' if (editar and global_formato_habilitado) or (not editar and form.habilitar_formato.data) else 'false' }}">
 
                 {{ form.hidden_tag() }} <!-- CSRF token -->
@@ -46,7 +175,6 @@
                 <div class="row mb-3">
                      <div class="col-md-6">
                         {{ form.fecha_cierre.label(class="form-label fw-bold") }}
-                        {# Formatear valor para datetime-local #}
                         {{ form.fecha_cierre(class="form-control", type="datetime-local", value=form.fecha_cierre.data.strftime('%Y-%m-%dT%H:%M') if form.fecha_cierre.data else '') }}
                         {% for error in form.fecha_cierre.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
@@ -66,43 +194,58 @@
 
                 {# --- Configuración GLOBAL de Análisis --- #}
                 <h4 class="mb-3 border-bottom pb-2">Configuración Global de Análisis</h4>
-                <p class="text-muted small mb-3">Habilitar globalmente las herramientas automáticas de revisión.</p>
-                <div class="row mb-2">
-                    {# Switch Global Formato #}
-                    <div class="col-sm-6 col-md-4 col-lg-3 mb-2">
-                        <div class="form-check form-switch">
-                            {{ form.habilitar_formato(class="form-check-input", id="global-habilitar-formato") }}
-                            {{ form.habilitar_formato.label(class="form-check-label") }}
-                            {% for error in form.habilitar_formato.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                <p class="text-muted small mb-3">Habilitar globalmente las herramientas automáticas de revisión para todas las preguntas de este examen.</p>
+
+                {# Usamos d-flex y flex-wrap en el div.row para un mejor manejo del envolvimiento #}
+                <div class="row d-flex flex-wrap align-items-center"> 
+
+                    <div class="col-12 col-sm-6 col-lg-auto mb-3"> {# col-lg-auto para que tome el ancho necesario en pantallas grandes #}
+                        <div class="form-check form-switch d-inline-flex align-items-center"> {# d-inline-flex para alinear elementos horizontalmente #}
+                            {{ form.habilitar_formato(class="form-check-input me-2", id="global-habilitar-formato") }} {# me-2 para margen a la derecha del switch #}
+                            {{ form.habilitar_formato.label(class="form-check-label", for="global-habilitar-formato") }}
+                            <i class="fas fa-info-circle text-muted ms-1" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="Verifica el código contra guías de estilo (ej. PEP8, ClangFormat) para mejorar legibilidad y detectar errores comunes de formato. Herramientas: Flake8, Pylint, ClangFormat."></i>
                         </div>
                     </div>
-                    {# Switch Global Métricas #}
-                    <div class="col-sm-6 col-md-4 col-lg-3 mb-2">
-                         <div class="form-check form-switch">
-                            {{ form.habilitar_metricas(class="form-check-input") }}
-                            {{ form.habilitar_metricas.label(class="form-check-label") }}
-                             {% for error in form.habilitar_metricas.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+
+                    <div class="col-12 col-sm-6 col-lg-auto mb-3">
+                        <div class="form-check form-switch d-inline-flex align-items-center">
+                            {{ form.habilitar_metricas(class="form-check-input me-2", id="global-habilitar-metricas") }}
+                            {{ form.habilitar_metricas.label(class="form-check-label", for="global-habilitar-metricas") }}
+                            <i class="fas fa-info-circle text-muted ms-1" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="Calcula métricas como Líneas de Código (LOC), Complejidad Ciclomática (CC), y analiza el estilo general para evaluar la estructura y calidad del código. Herramientas: Radon, análisis AST, Flake8."></i>
                         </div>
                     </div>
-                    {# Switch Global Similitud #}
-                     <div class="col-sm-6 col-md-4 col-lg-3 mb-2">
-                         <div class="form-check form-switch">
-                            {{ form.habilitar_similitud(class="form-check-input") }}
-                            {{ form.habilitar_similitud.label(class="form-check-label") }}
-                             {% for error in form.habilitar_similitud.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+
+                    <div class="col-12 col-sm-6 col-lg-auto mb-3">
+                        <div class="form-check form-switch d-inline-flex align-items-center">
+                            {{ form.habilitar_similitud(class="form-check-input me-2", id="global-habilitar-similitud") }}
+                            {{ form.habilitar_similitud.label(class="form-check-label", for="global-habilitar-similitud") }}
+                            <i class="fas fa-info-circle text-muted ms-1" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="Compara las entregas entre sí para detectar similitudes estructurales o textuales, ayudando a identificar posible plagio. Herramientas: MOSS API, comparación de AST/tokens."></i>
                         </div>
                     </div>
-                    {# Switch Global Rendimiento #}
-                     <div class="col-sm-6 col-md-4 col-lg-3 mb-2">
-                         <div class="form-check form-switch">
-                            {{ form.habilitar_rendimiento(class="form-check-input") }}
-                            {{ form.habilitar_rendimiento.label(class="form-check-label") }}
-                             {% for error in form.habilitar_rendimiento.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+
+                    <div class="col-12 col-sm-6 col-lg-auto mb-3">
+                        <div class="form-check form-switch d-inline-flex align-items-center">
+                            {{ form.habilitar_rendimiento(class="form-check-input me-2", id="global-habilitar-rendimiento") }}
+                            {{ form.habilitar_rendimiento.label(class="form-check-label", for="global-habilitar-rendimiento") }}
+                            <i class="fas fa-info-circle text-muted ms-1" 
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top"
+                            title="Evalúa la corrección funcional del código ejecutándolo contra casos de prueba predefinidos. Puede incluir medición de tiempo y memoria."></i>
                         </div>
                     </div>
                 </div>
                 <hr class="my-4">
 
+                {# --- Configuración de Entrega --- #}
                 {# --- Preguntas --- #}
                 <div class="d-flex justify-content-between align-items-center mb-3">
                      <h4 class="mb-0 border-bottom pb-2">Preguntas</h4>
@@ -116,8 +259,6 @@
                     {% for pregunta_field in form.preguntas %}
                         <div class="card mb-3 shadow-sm pregunta-card"
                              data-initial-language="{{ pregunta_field.lenguaje_programacion.data }}"
-                             {# Acceder a los subcampos usando .form si es un FormField anidado #}
-                             {# O directamente si los añadiste a PreguntaForm #}
                              data-initial-linter="{{ pregunta_field.linter_perfil.data if pregunta_field.linter_perfil else '' }}">
                             <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
                                 <h5 class="card-title mb-0">Pregunta <span class="pregunta-numero">{{ loop.index }}</span></h5>
@@ -129,54 +270,83 @@
                                 {# Campos Pregunta: enunciado, puntaje, lenguaje #}
                                 <div class="mb-3">
                                     {{ pregunta_field.enunciado.label(class="form-label fw-bold") }} <span class="text-danger">*</span>
-                                    {{ pregunta_field.enunciado(class="form-control", rows="4", placeholder="Escriba aquí el enunciado...") }}
-                                    {% for error in pregunta_field.enunciado.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                    {{ pregunta_field.enunciado(class="form-control ckeditor-enunciado", rows="8", placeholder="Escriba aquí el enunciado...", id=pregunta_field.enunciado.id) }}
+                                    {% for error in pregunta_field.enunciado.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
                                 </div>
                                 <div class="row mb-3">
                                     <div class="col-md-6">
                                         {{ pregunta_field.puntaje_total.label(class="form-label fw-bold") }} <span class="text-danger">*</span>
                                         {{ pregunta_field.puntaje_total(class="form-control", placeholder="Ej: 20.0", type="number", step="0.1", min="0") }}
-                                        {% for error in pregunta_field.puntaje_total.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                                     </div>
                                     <div class="col-md-6">
                                         {{ pregunta_field.lenguaje_programacion.label(class="form-label fw-bold") }} <span class="text-danger">*</span>
-                                        {# Clase JS #}
                                         {{ pregunta_field.lenguaje_programacion(class="form-select pregunta-lenguaje") }}
-                                        {% for error in pregunta_field.lenguaje_programacion.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                                     </div>
                                 </div>
 
                                 {# --- SECCIÓN CONFIGURACIÓN DE FORMATO POR PREGUNTA --- #}
                                 <div class="mt-3 pt-3 border-top formato-config-section" style="display: none;">
                                     <h6 class="text-muted mb-2">Configuración Análisis de Formato (Esta Pregunta)</h6>
-                                    <p class="text-muted small mb-3">Selecciona una herramienta si deseas un análisis específico. Solo aplica si la opción global de formato está habilitada.</p>
                                     <div class="row">
                                         <div class="col-md-6 mb-3">
-                                            {# Asegúrate que estos campos existan en PreguntaForm #}
                                             {{ pregunta_field.linter_perfil.label(class="form-label") }}
                                             {{ pregunta_field.linter_perfil(class="form-select pregunta-linter-perfil") }}
-                                            <small class="form-text text-muted">{{ pregunta_field.linter_perfil.description }}</small>
-                                            {% for error in pregunta_field.linter_perfil.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                                         </div>
                                         <div class="col-md-6 mb-3">
                                             {{ pregunta_field.linter_args_adicionales.label(class="form-label") }}
                                             {{ pregunta_field.linter_args_adicionales(class="form-control form-control-sm pregunta-linter-args", rows=2) }}
-                                            <small class="form-text text-muted">{{ pregunta_field.linter_args_adicionales.description }}</small>
-                                            {% for error in pregunta_field.linter_args_adicionales.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                                         </div>
                                     </div>
                                 </div>
-                                {# --- FIN SECCIÓN --- #}
 
-                                {# --- Rubrica LLM --- #}
-                                <div class="mb-3 mt-3 border-top pt-3">
-                                    {{ pregunta_field.rubrica_evaluacion.label(class="form-label fw-bold") }}
-                                    <span class="badge bg-secondary ms-1" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ pregunta_field.rubrica_evaluacion.description }}">
-                                        <i class="fas fa-info-circle"></i> JSON
-                                    </span>
-                                    {{ pregunta_field.rubrica_evaluacion(class="form-control form-control-sm", rows=8) }}
-                                    {% for error in pregunta_field.rubrica_evaluacion.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                {# --- INICIO: Rúbrica de Evaluación Flexible --- #}
+                                <div class="mb-3 mt-3 border-top pt-3 rubrica-editor-container">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="mb-0 fw-bold">Rúbrica de Evaluación para LLM (Opcional)</h6>
+                                        <div class="col-md-5 col-lg-4"> {# Ajusta el tamaño de columna #}
+                                            <label for="tipo-rubrica-selector-{{ loop.index0 }}" class="form-label form-label-sm">Modo de Rúbrica:</label>
+                                            <select class="form-select form-select-sm tipo-rubrica-selector" 
+                                                    id="tipo-rubrica-selector-{{ loop.index0 }}" 
+                                                    data-pregunta-index="{{ loop.index0 }}">
+                                                <option value="simple" selected>Puntuación Simple por Criterio</option>
+                                                <option value="niveles">Puntuación por Niveles de Desempeño</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex justify-content-end mb-2">
+                                        <button type="button" class="btn btn-outline-success btn-sm accion-btn agregar-criterio-rubrica me-1" title="Añadir Criterio">
+                                            <i class="fas fa-plus"></i> Criterio
+                                        </button>
+                                        <button type="button" class="btn btn-outline-info btn-sm accion-btn agregar-columna-nivel-rubrica" title="Añadir Columna de Nivel" style="display: none;"> {# Oculto por defecto #}
+                                            <i class="fas fa-columns"></i> Nivel
+                                        </button>
+                                    </div>
+                                    <small class="form-text text-muted d-block mb-2 rubrica-modo-ayuda">
+                                        <!-- El JS actualizará esta ayuda -->
+                                    </small>
+                                    <div class="table-responsive mb-2">
+                                        <table class="table table-bordered table-sm rubrica-tabla-dinamica">
+                                            <thead>
+                                                <!-- El JS construirá este encabezado -->
+                                            </thead>
+                                            <tbody>
+                                                <!-- Filas de Criterios generadas por JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <!-- Textarea oculto para almacenar el JSON final -->
+                                    {{ pregunta_field.rubrica_evaluacion(class="form-control form-control-sm rubrica-json-data-storage", rows="3", style="display:none;") }}
+                                    {% for error in pregunta_field.rubrica_evaluacion.errors %}
+                                        <div class="invalid-feedback d-block">{{ error }}</div>
+                                    {% endfor %}
+
+                                    <h6 class="small text-muted mt-2 mb-1">JSON Generado (para el LLM):</h6>
+                                    <pre><code class="rubrica-json-output" style="max-height: 100px;">{}</code></pre>
                                 </div>
+                                {# --- FIN: Rúbrica de Evaluación Flexible --- #}
 
                                 {# --- Casos de Prueba --- #}
                                 <div class="d-flex justify-content-between align-items-center mb-2 mt-4 border-top pt-3">
@@ -186,7 +356,6 @@
                                     </button>
                                 </div>
                                 <div class="casos_de_prueba ps-2">
-                                    {# Bucle casos existentes #}
                                     {% for caso_field in pregunta_field.casos_de_prueba %}
                                         <div class="card mb-2 shadow-sm caso-card bg-white">
                                             <div class="card-body p-3">
@@ -195,7 +364,6 @@
                                                         <i class="fas fa-times fa-fw"></i>
                                                      </button>
                                                 </div>
-                                                {# Renderizar campos del caso #}
                                                 <div class="mb-2">
                                                      {{ caso_field.descripcion.label(class="form-label form-label-sm") }}
                                                      {{ caso_field.descripcion(class="form-control form-control-sm", placeholder="Descripción breve") }}
@@ -224,7 +392,6 @@
                                                            </div>
                                                       </div>
                                                  </div>
-                                                 {# Mostrar errores del caso si existen #}
                                                  {% if caso_field.errors %}
                                                      <div class="alert alert-danger alert-sm mt-2 p-1">
                                                          {% for field, errors in caso_field.errors.items() %}
@@ -235,21 +402,18 @@
                                             </div>
                                         </div>
                                     {% endfor %}
-                                    {# Placeholder casos #}
                                     <div class="no-casos-placeholder text-muted small p-2 {% if pregunta_field.casos_de_prueba.entries %}d-none{% endif %}">
                                         <i class="fas fa-info-circle"></i> No hay casos de prueba definidos.
                                     </div>
-                                </div> {# End .casos_de_prueba #}
-                            </div> {# End card-body #}
-                        </div> {# End pregunta-card #}
+                                </div>
+                            </div>
+                        </div>
                     {% endfor %}
-                    {# Placeholder sin preguntas #}
                     <div id="no-preguntas-placeholder" class="alert alert-secondary text-center {% if form.preguntas.entries %}d-none{% endif %}">
                          <i class="fas fa-info-circle"></i> Aún no has agregado ninguna pregunta al examen.
                     </div>
-                </div> {# End #preguntas #}
+                </div>
 
-                {# --- Botón de Envío --- #}
                 <div class="d-grid mt-4">
                     <button type="submit" class="btn btn-lg {% if editar %}btn-warning{% else %}btn-success{% endif %}">
                         {% if editar %}<i class="fas fa-save"></i> Actualizar Examen
@@ -257,20 +421,18 @@
                         {% endif %}
                     </button>
                 </div>
-            </form> {# End form #}
-        </div> {# End card-body #}
-    </div> {# End card #}
+            </form>
+        </div>
+    </div>
 
-    {# --- Botón Volver --- #}
     <a href="{{ url_for('gestionar_examenes') }}" class="btn btn-outline-secondary mt-3 mb-4">
         <i class="fas fa-arrow-left"></i> Volver a Gestionar Exámenes
     </a>
-</div> {# End container #}
+</div>
 
 {# --- Plantillas JS --- #}
 <template id="pregunta-template">
      <div class="card mb-3 shadow-sm pregunta-card"
-          {# Definir lenguaje inicial default #}
           data-initial-language="{{ LENGUAJES_SOPORTADOS[0][0] if LENGUAJES_SOPORTADOS else 'python' }}"
           data-initial-linter="">
         <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
@@ -280,21 +442,18 @@
             </button>
         </div>
         <div class="card-body">
-             {# Campos Pregunta #}
              <div class="mb-3">
                  <label class="form-label fw-bold" for="preguntas-__prefix__-enunciado">Enunciado <span class="text-danger">*</span></label>
-                 <textarea class="form-control" id="preguntas-__prefix__-enunciado" name="preguntas-__prefix__-enunciado" rows="4" placeholder="Escriba aquí el enunciado..."></textarea>
+                 <textarea class="form-control ckeditor-enunciado" id="preguntas-__prefix__-enunciado" name="preguntas-__prefix__-enunciado" rows="8" placeholder="Escriba aquí el enunciado..."></textarea>
              </div>
              <div class="row mb-3">
                   <div class="col-md-6">
                      <label class="form-label fw-bold" for="preguntas-__prefix__-puntaje_total">Puntaje Total <span class="text-danger">*</span></label>
-                     <input class="form-control" id="preguntas-__prefix__-puntaje_total" name="preguntas-__prefix__-puntaje_total" type="number" step="0.1" placeholder="Ej: 20.0" min="0" value="10"> {# Default value? #}
+                     <input class="form-control" id="preguntas-__prefix__-puntaje_total" name="preguntas-__prefix__-puntaje_total" type="number" step="0.1" placeholder="Ej: 20.0" min="0" value="10">
                  </div>
                   <div class="col-md-6">
                      <label class="form-label fw-bold" for="preguntas-__prefix__-lenguaje_programacion">Lenguaje <span class="text-danger">*</span></label>
-                     {# Clase JS #}
                      <select class="form-select pregunta-lenguaje" id="preguntas-__prefix__-lenguaje_programacion" name="preguntas-__prefix__-lenguaje_programacion">
-                          {# Usar LENGUAJES_SOPORTADOS de Python si está disponible, sino hardcodear #}
                           {% if LENGUAJES_SOPORTADOS %}
                               {% for val, label in LENGUAJES_SOPORTADOS %}
                                  <option value="{{ val }}" {% if loop.first %}selected{% endif %}>{{ label }}</option>
@@ -306,37 +465,49 @@
                  </div>
              </div>
 
-            {# --- SECCIÓN FORMATO (Plantilla JS) --- #}
             <div class="mt-3 pt-3 border-top formato-config-section" style="display: none;">
                 <h6 class="text-muted mb-2">Configuración Análisis de Formato (Pregunta)</h6>
-                <p class="text-muted small mb-3">Selecciona una herramienta si deseas un análisis específico.</p>
                 <div class="row">
                     <div class="col-md-6 mb-3">
                          <label class="form-label" for="preguntas-__prefix__-linter_perfil">Herramienta/Perfil</label>
-                         {# Clase JS, name correcto #}
                          <select class="form-select pregunta-linter-perfil" id="preguntas-__prefix__-linter_perfil" name="preguntas-__prefix__-linter_perfil">
                              <option value="" selected>--- Ninguno ---</option>
                          </select>
-                         <small class="form-text text-muted">Solo si la opción global está activa.</small>
                     </div>
                     <div class="col-md-6 mb-3">
                          <label class="form-label" for="preguntas-__prefix__-linter_args_adicionales">Argumentos Adicionales</label>
-                         {# Clase JS, name correcto #}
                          <textarea class="form-control form-control-sm pregunta-linter-args" id="preguntas-__prefix__-linter_args_adicionales" name="preguntas-__prefix__-linter_args_adicionales" rows="2" placeholder="Ej: --ignore=E501..."></textarea>
-                         <small class="form-text text-muted">Argumentos extra para el linter.</small>
                     </div>
                 </div>
             </div>
-            {# --- FIN SECCIÓN --- #}
 
-            {# --- Rubrica LLM --- #}
-            <div class="mb-3 mt-3 border-top pt-3">
-                 <label class="form-label fw-bold" for="preguntas-__prefix__-rubrica_evaluacion">Rúbrica Evaluación (JSON, Opcional)</label>
-                 <span class="badge bg-secondary ms-1" data-bs-toggle="tooltip" title="Rúbrica cualitativa para LLM."> <i class="fas fa-info-circle"></i> JSON </span>
-                 <textarea class="form-control form-control-sm" style="font-family: monospace;" id="preguntas-__prefix__-rubrica_evaluacion" name="preguntas-__prefix__-rubrica_evaluacion" rows="8" placeholder='{\n  "criterio1": {...}\n}'></textarea>
+            {# --- NUEVA Rúbrica Interfaz Tabla (Plantilla JS) --- #}
+            <div class="mb-3 mt-3 border-top pt-3 rubrica-editor-container">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 fw-bold">Rúbrica de Evaluación (Opcional)</h6>
+                    <div>
+                        <button type="button" class="btn btn-outline-success btn-sm accion-btn agregar-criterio-rubrica me-1" title="Añadir Criterio (Fila)">
+                            <i class="fas fa-plus"></i> Criterio
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm accion-btn agregar-nivel-rubrica" title="Añadir Nivel de Desempeño (Columna)">
+                            <i class="fas fa-columns"></i> Nivel
+                        </button>
+                    </div>
+                </div>
+                <div class="table-responsive mb-2">
+                    <table class="table table-bordered table-sm rubrica-tabla-dinamica">
+                        <thead></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <!-- Textarea oculto para almacenar el JSON final -->
+                <textarea class="form-control form-control-sm rubrica-json-data-storage" id="preguntas-__prefix__-rubrica_evaluacion" name="preguntas-__prefix__-rubrica_evaluacion" rows="5" style="display:none;" placeholder='Se generará automáticamente...'></textarea>
+
+                <h6 class="small text-muted mt-2 mb-1">JSON Generado:</h6>
+                <pre><code class="rubrica-json-output">{}</code></pre>
             </div>
+            {# --- FIN NUEVA Rúbrica (Plantilla JS) --- #}
 
-            {# --- Casos de Prueba --- #}
             <div class="d-flex justify-content-between align-items-center mb-2 mt-4 border-top pt-3">
                 <h6 class="mb-0 text-muted">Casos de Prueba</h6>
                 <button type="button" class="btn btn-outline-secondary btn-sm agregar-caso">
@@ -348,16 +519,13 @@
                    <i class="fas fa-info-circle"></i> No hay casos de prueba definidos. Agrega uno.
                 </div>
             </div>
-        </div> {# End card-body #}
-    </div> {# End pregunta-card #}
+        </div>
+    </div>
 </template>
 
-{# --- Plantilla Caso de Prueba (Sin Cambios Necesarios Aquí) --- #}
 <template id="caso-template">
      <div class="card mb-2 shadow-sm caso-card bg-white">
          <div class="card-body p-3">
-             {# CSRF (generalmente no necesario en sub-formularios) #}
-             {# <input type="hidden" name="preguntas-__p_idx__-casos_de_prueba-__prefix__-csrf_token" value="..."> #}
              <div class="d-flex justify-content-end mb-2">
                  <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1 eliminar-caso" title="Eliminar este caso">
                      <i class="fas fa-times fa-fw"></i>
@@ -395,38 +563,190 @@
      </div>
 </template>
 
-{# --- JavaScript --- #}
-{# Incluir jQuery y Bootstrap JS (asegúrate que estén disponibles) #}
+{# ... (tus scripts de jQuery y Bootstrap) ... #}
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+
+<link rel="stylesheet" href="{{ url_for('static', filename='ckeditor5/ckeditor5.css') }}"> 
+<link rel="stylesheet" href="{{ url_for('static', filename='ckeditor5/ckeditor5-content.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='ckeditor5/ckeditor5-editor.css') }}">
+{# --- CARGA DE CKEDITOR 5 (LOCAL - UMD Build) --- #}
+<script src="{{ url_for('static', filename='ckeditor5/ckeditor5.umd.js') }}"></script>
+
+
+
 <script>
-    // Parsear el JSON pasado desde la ruta Flask
-    let lintersDisponibles = {}; // Default a objeto vacío
-    // Usar |tojson|safe para asegurar que es un JSON válido y evitar escape HTML
-    const lintersJsonString = {{ todos_los_linters_json|tojson|safe }};
-    lintersDisponibles = JSON.parse(lintersJsonString);
-    console.log("Linters Disponibles Cargados:", lintersDisponibles);
-    // Definir LENGUAJES_SOPORTADOS en JS (como fallback o si no se pasa desde Python)
-    const LENGUAJES_SOPORTADOS_JS = [
-        ['c', 'C'], ['python', 'Python'], ['java', 'Java'], ['pseint', 'PSeInt']
-        // Asegúrate que coincida con tu constante de Python
-    ];
+    if (typeof ClassicEditor === 'undefined' && typeof CKEDITOR !== 'undefined' && typeof CKEDITOR.ClassicEditor !== 'undefined') {
+        console.log("INFO: ClassicEditor encontrado en window.CKEDITOR.ClassicEditor. Haciéndolo global.");
+        window.ClassicEditor = CKEDITOR.ClassicEditor;
+    }
+    console.log("Estado final de ClassicEditor:", typeof ClassicEditor);
+</script>
+
+{# --- SCRIPT DE PRUEBA INMEDIATO --- #}
+<script>
+    console.log(">>> PRUEBA INMEDIATA: typeof ClassicEditor:", typeof ClassicEditor);
+    if (typeof ClassicEditor === 'undefined') {
+        console.error(">>> ERROR INMEDIATO: ClassicEditor NO está definido aquí.");
+        // Para ver si está dentro del objeto CKEDITOR que se crea globalmente
+        if (typeof CKEDITOR !== 'undefined' && typeof CKEDITOR.ClassicEditor !== 'undefined') {
+            console.log(">>> INFO: ClassicEditor SÍ está en window.CKEDITOR.ClassicEditor");
+            window.ClassicEditor = CKEDITOR.ClassicEditor; // Hacerlo global directamente
+            console.log(">>> INFO: ClassicEditor ahora es global. typeof ClassicEditor:", typeof ClassicEditor);
+        } else if (typeof CKEDITOR !== 'undefined') {
+            console.warn(">>> INFO: Objeto CKEDITOR global existe, pero no tiene ClassicEditor. Contenido:", CKEDITOR);
+        } else {
+            console.warn(">>> INFO: Objeto CKEDITOR global tampoco existe.");
+        }
+    } else {
+        console.log(">>> ÉXITO INMEDIATO: ClassicEditor SÍ está definido globalmente.");
+    }
 </script>
 <script>
+    let lintersDisponibles = {};
+    const lintersJsonString = {{ todos_los_linters_json|tojson|safe }};
+    lintersDisponibles = JSON.parse(lintersJsonString);
+    const LENGUAJES_SOPORTADOS_JS = [
+        ['c', 'C'], ['python', 'Python'], ['java', 'Java'], ['pseint', 'PSeInt']
+    ];
+</script>
+<script type="module">
+    // Primero, una comprobación global fuera del $(document).ready() para ver si se cargó
+    console.log("ESTADO GLOBAL INICIAL de ClassicEditor:", typeof ClassicEditor);
+    if (typeof ClassicEditor === 'undefined') {
+        console.error("ALERTA GLOBAL: ClassicEditor NO está definido después de cargar el script. " + 
+                      "Verifica la ruta del script, si el archivo 'ckeditor.js' es la build UMD correcta, " +
+                      "y que no haya errores 404 en la pestaña Network del navegador.");
+    }
+
+    // Variable global para almacenar las instancias de CKEditor por ID
+    window.ckeditorInstances = {};
+
+    // --- FUNCIÓN PARA INICIALIZAR CKEDITOR (DEBE ESTAR DEFINIDA ANTES DE SER LLAMADA) ---
+// --- FUNCIÓN PARA INICIALIZAR CKEDITOR (USANDO EL NAMESPACE CKEDITOR) ---
+function inicializarCKEditor(elementId) {
+    // Verificar si CKEDITOR y CKEDITOR.ClassicEditor están definidos
+    if (typeof CKEDITOR === 'undefined' || typeof CKEDITOR.ClassicEditor === 'undefined') {
+        console.error(`✖ Error en inicializarCKEditor para #${elementId}:`);
+        if (typeof CKEDITOR === 'undefined') {
+            console.error("  El objeto global 'CKEDITOR' no está definido. Asegúrate de que 'ckeditor5.umd.js' se cargó correctamente.");
+        } else {
+            console.error("  'CKEDITOR.ClassicEditor' no está definido. La build de CKEditor podría estar incompleta o ser incorrecta.");
+        }
+        return;
+    }
+
+    const targetElement = document.getElementById(elementId);
+
+    if (targetElement) {
+        // Verificar si ya existe una instancia para este elemento
+        if (window.ckeditorInstances && window.ckeditorInstances[elementId] && window.ckeditorInstances[elementId].state !== 'destroyed') {
+            // console.log(`CKEditor ya inicializado y activo para #${elementId} (vía CKEDITOR namespace).`);
+            return;
+        }
+        // Limpiar referencia si fue destruida
+        if (window.ckeditorInstances && window.ckeditorInstances[elementId] && window.ckeditorInstances[elementId].state === 'destroyed') {
+            delete window.ckeditorInstances[elementId];
+            targetElement.classList.remove('ck-editor-initialized');
+        }
+        
+        // Acceder a ClassicEditor y a los plugins a través del namespace CKEDITOR
+        // Esta lista de plugins DEBE COINCIDIR con lo que tu build personalizada (del Online Builder) realmente contiene y exporta bajo CKEDITOR.
+        // Revisa el main.js que te generó el Online Builder para ver qué plugins importaba.
+        // Esos mismos plugins deberían estar disponibles como CKEDITOR.PluginNombre si la build UMD los agrupa así.
+        const pluginsParaEstaInstancia = [
+            CKEDITOR.Alignment, CKEDITOR.Autoformat, CKEDITOR.AutoImage, CKEDITOR.AutoLink, CKEDITOR.Autosave, 
+            CKEDITOR.BalloonToolbar, CKEDITOR.BlockQuote, CKEDITOR.Bold, CKEDITOR.Bookmark, CKEDITOR.Code, 
+            CKEDITOR.Essentials, CKEDITOR.FindAndReplace, CKEDITOR.FontBackgroundColor, CKEDITOR.FontColor, 
+            CKEDITOR.FontFamily, CKEDITOR.FontSize, CKEDITOR.Fullscreen, CKEDITOR.GeneralHtmlSupport, 
+            CKEDITOR.Heading, CKEDITOR.Highlight, CKEDITOR.HorizontalLine, CKEDITOR.ImageBlock, 
+            CKEDITOR.ImageCaption, CKEDITOR.ImageEditing, CKEDITOR.ImageInline, CKEDITOR.ImageInsert, 
+            CKEDITOR.ImageInsertViaUrl, CKEDITOR.ImageResize, CKEDITOR.ImageStyle, CKEDITOR.ImageTextAlternative, 
+            CKEDITOR.ImageToolbar, CKEDITOR.ImageUpload, CKEDITOR.ImageUtils, CKEDITOR.Indent, 
+            CKEDITOR.IndentBlock, CKEDITOR.Italic, CKEDITOR.Link, CKEDITOR.LinkImage, CKEDITOR.List, 
+            CKEDITOR.ListProperties, CKEDITOR.PageBreak, CKEDITOR.Paragraph, CKEDITOR.PasteFromOffice, 
+            CKEDITOR.RemoveFormat, CKEDITOR.SimpleUploadAdapter, CKEDITOR.SpecialCharacters, 
+            CKEDITOR.SpecialCharactersArrows, CKEDITOR.SpecialCharactersCurrency, CKEDITOR.SpecialCharactersEssentials, 
+            CKEDITOR.SpecialCharactersLatin, CKEDITOR.SpecialCharactersMathematical, CKEDITOR.SpecialCharactersText, 
+            CKEDITOR.Strikethrough, CKEDITOR.Style, CKEDITOR.Subscript, CKEDITOR.Superscript, CKEDITOR.Table, 
+            CKEDITOR.TableCaption, CKEDITOR.TableCellProperties, CKEDITOR.TableColumnResize, 
+            CKEDITOR.TableProperties, CKEDITOR.TableToolbar, CKEDITOR.TextTransformation, 
+            CKEDITOR.TodoList, CKEDITOR.Underline
+            // ¡IMPORTANTE! Si alguno de estos no existe como CKEDITOR.PluginNombre, causará un error.
+            // Debes verificar qué exporta realmente tu ckeditor5.umd.js bajo el objeto CKEDITOR.
+        ].filter(plugin => typeof plugin !== 'undefined'); // Filtrar plugins que podrían no estar definidos
+
+        if (pluginsParaEstaInstancia.length < 5) { // Un chequeo muy básico
+            console.warn(`ADVERTENCIA: Pocos plugins encontrados bajo el namespace CKEDITOR para #${elementId}. Verifica que tu build los incluya y los exporte correctamente.`);
+        }
+
+        CKEDITOR.ClassicEditor // <--- Usando CKEDITOR.ClassicEditor
+            .create(targetElement, {
+                plugins: pluginsParaEstaInstancia, // Pasando la lista de plugins
+                toolbar: { 
+                    items: [ // Esta lista de botones debe corresponder a los plugins cargados
+                        'heading', '|', 'bold', 'italic', 'underline', 'strikethrough', '|',
+                        'fontFamily', 'fontSize', 'fontColor', 'fontBackgroundColor', '|',
+                        'bulletedList', 'numberedList', 'todoList', '|', 'alignment', '|',
+                        'outdent', 'indent', '|', 'link', 'insertImage', 'blockQuote', 
+                        'insertTable', 'mediaEmbed', 'codeBlock', 'horizontalLine', '|',
+                        'removeFormat', '|', 'undo', 'redo', '|', 'sourceEditing'
+                    ],
+                    shouldNotGroupWhenFull: false
+                },
+                language: 'es', 
+                placeholder: 'Escribe el enunciado aquí...',
+                image: { 
+                    toolbar: ['imageTextAlternative', 'toggleImageCaption', 'imageStyle:inline', 'imageStyle:block', 'imageStyle:side', 'linkImage']
+                },
+                table: { 
+                    contentToolbar: [ 'tableColumn', 'tableRow', 'mergeTableCells', 'tableCellProperties', 'tableProperties' ]
+                },
+                // ... (otras configuraciones como mediaEmbed, codeBlock) ...
+                simpleUpload: {
+                    uploadUrl: "{{ url_for('upload_editor_image') }}",
+                    headers: {
+                        'X-CSRFToken': document.querySelector('input[name="csrf_token"]') ? 
+                                       document.querySelector('input[name="csrf_token"]').value : 
+                                       ''
+                    }
+                },
+                licenseKey: 'GPL' // O tu clave si aplica
+            })
+            .then(editor => {
+                if (!window.ckeditorInstances) window.ckeditorInstances = {}; // Asegurar que el objeto global exista
+                window.ckeditorInstances[elementId] = editor;
+                targetElement.ckeditorInstance = editor;
+                targetElement.classList.add('ck-editor-initialized');
+                console.log(`✓ CKEditor UMD (namespace CKEDITOR) inicializado para #${elementId}`);
+                editor.model.document.on('change:data', () => {
+                    if (window.ckeditorInstances[elementId] && window.ckeditorInstances[elementId].state !== 'destroyed') {
+                       targetElement.value = editor.getData();
+                    }
+                });
+            })
+            .catch(error => {
+                console.error(`Error al inicializar CKEditor UMD (namespace CKEDITOR) para #${elementId}:`, error);
+                if (targetElement) {
+                    targetElement.innerHTML = '<p style="color:red;">Error al cargar el editor. Verifique la consola para más detalles.</p>';
+                }
+            });
+    } else {
+        console.warn(`ADVERTENCIA: Elemento con ID #${elementId} no encontrado en el DOM para CKEditor (namespace CKEDITOR).`);
+    }
+}
+
 $(document).ready(function() {
 
-    const $preguntasContainer = $('#preguntas'); // Contenedor principal de preguntas
+    const $preguntasContainer = $('#preguntas');
     const $noPreguntasPlaceholder = $('#no-preguntas-placeholder');
 
-    // --- Función para verificar placeholders ---
     function checkPlaceholders() {
-        // Placeholder de preguntas
         if ($preguntasContainer.find('.pregunta-card').length === 0) {
             $noPreguntasPlaceholder.removeClass('d-none');
         } else {
             $noPreguntasPlaceholder.addClass('d-none');
         }
-        // Placeholder de casos dentro de cada pregunta
         $preguntasContainer.find('.pregunta-card').each(function() {
             var $casosContainer = $(this).find('.casos_de_prueba');
             if ($casosContainer.find('.caso-card').length === 0) {
@@ -437,7 +757,6 @@ $(document).ready(function() {
         });
     }
 
-    // --- Función para actualizar índices de CASOS ---
     function actualizarIndicesCasos(preguntaCard) {
         var preguntaIndex = $preguntasContainer.find('.pregunta-card').index(preguntaCard);
         preguntaCard.find('.casos_de_prueba .caso-card').each(function(casoIndex) {
@@ -447,12 +766,10 @@ $(document).ready(function() {
                 ['name', 'id'].forEach(function(attr) {
                     var oldVal = $element.attr(attr);
                     if (oldVal) {
-                        // Construir el nuevo prefijo completo de forma segura
                         var nameParts = oldVal.split('-');
-                        var fieldName = nameParts.pop(); // Obtener el nombre final del campo
+                        var fieldName = nameParts.pop();
                         var newPrefix = `preguntas-${preguntaIndex}-casos_de_prueba-${casoIndex}-`;
                         var newVal = newPrefix + fieldName;
-
                         $element.attr(attr, newVal);
                         if (attr === 'id') {
                             var $label = $casoCard.find(`label[for="${oldVal}"]`);
@@ -464,56 +781,340 @@ $(document).ready(function() {
         });
     }
 
-    // --- Función para actualizar índices de PREGUNTAS ---
     function actualizarIndicesPreguntas() {
-        console.log("Actualizando índices de preguntas...");
         $preguntasContainer.find('.pregunta-card').each(function(index) {
             var $preguntaCard = $(this);
             $preguntaCard.find('.pregunta-numero').text(index + 1);
-
-            // Actualizar campos directos de la pregunta
-            $preguntaCard.find('> .card-body > [name^="preguntas-"], > .card-body > .row [name^="preguntas-"], > .card-body > .formato-config-section [name^="preguntas-"], > .card-body > div > [name^="preguntas-"]')
-                .not('[name*="casos_de_prueba"]') // Excluir campos de casos de prueba
+            $preguntaCard.find('> .card-body > [name^="preguntas-"], > .card-body > .row [name^="preguntas-"], > .card-body > .formato-config-section [name^="preguntas-"], > .card-body > div > [name^="preguntas-"], .rubrica-editor-container [name^="preguntas-"]')
+                .not('[name*="casos_de_prueba"]')
                 .each(function() {
                 var $element = $(this);
                 var nameAttr = $element.attr('name');
                 var idAttr = $element.attr('id');
-
                 if (nameAttr) {
                     var nameMatch = nameAttr.match(/^preguntas-\d+-(.*)$/);
                     if (nameMatch && nameMatch[1]) {
                         var fieldPath = nameMatch[1];
                         var newName = `preguntas-${index}-${fieldPath}`;
                         $element.attr('name', newName);
-
                         if (idAttr) {
                             var idMatch = idAttr.match(/^preguntas-\d+-(.*)$/);
                             if (idMatch && idMatch[1] === fieldPath) {
                                 var newId = `preguntas-${index}-${fieldPath}`;
                                 $element.attr('id', newId);
-                                var $label = $preguntaCard.find(`label[for="${idAttr}"]`).first(); // Buscar label asociado
+                                var $label = $preguntaCard.find(`label[for="${idAttr}"]`).first();
                                 if ($label.length) { $label.attr('for', newId); }
                             }
                         }
                     }
                 }
             });
-            // Re-indexar los casos dentro de esta pregunta
             actualizarIndicesCasos($preguntaCard);
         });
-        console.log("Índices de preguntas actualizados.");
     }
 
-    // --- Lógica para Linter Dinámico y Visibilidad ---
-    const linterOptionsCache = {};
+    // -------------- INICIO Rúbrica Interfaz Tabla --------------
+    // -----------------------------------------------------------
+    console.log("Inicializando lógica de rúbrica...");
+
+    function actualizarAyudaModoRubrica($preguntaCard) {
+        const modo = $preguntaCard.find('.tipo-rubrica-selector').val();
+        const $ayuda = $preguntaCard.find('.rubrica-modo-ayuda');
+        if (!$ayuda.length) return;
+
+        if (modo === 'simple') {
+            $ayuda.html('Modo actual: <strong>Puntuación Simple</strong>. Defina el criterio, su detalle/descripción y el puntaje total para ese criterio.');
+        } else {
+            $ayuda.html('Modo actual: <strong>Puntuación por Niveles</strong>. Defina criterios, el puntaje máximo total, y luego añada columnas de nivel con sus nombres, descripciones y puntajes específicos.');
+        }
+        console.log(`Ayuda actualizada para modo: ${modo} en pregunta ${$preguntaCard.data('pregunta-index')}`);
+    }
+
+    function construirEncabezadoRubrica($tabla, modo) {
+        console.log(`Construyendo encabezado para modo: ${modo}`);
+        $tabla.find('thead').empty();
+        let $headerRow = $('<tr>');
+        if (modo === 'simple') {
+            $headerRow.append('<th class="text-start" style="min-width: 200px; vertical-align: top;">Criterio (Ítem)</th>');
+            $headerRow.append('<th class="text-start" style="min-width: 300px; vertical-align: top;">Detalle (Descripción General)</th>');
+            $headerRow.append('<th class="text-center" style="width: 120px; vertical-align: top;">Puntaje <span class="text-danger">*</span></th>');
+        } else { // modo 'niveles'
+            $headerRow.append('<th class="text-start" style="min-width: 150px; vertical-align: top;">Criterio</th>');
+            $headerRow.append('<th class="text-start" style="min-width: 200px; vertical-align: top;">Desc. General (Opc)</th>');
+            $headerRow.append('<th class="text-center" style="width: 100px; vertical-align: top;">P. Máx Total <span class="text-danger">*</span></th>');
+            // La celda de acciones se añade al final
+        }
+        $headerRow.append('<th class="actions-header-cell text-center" style="width: 80px; vertical-align: top;">Acción</th>');
+        $tabla.find('thead').append($headerRow);
+    }
+
+    function agregarFilaCriterio($tabla, criterioData = null) {
+        const $preguntaCard = $tabla.closest('.pregunta-card');
+        const modo = $preguntaCard.find('.tipo-rubrica-selector').val();
+        const $tbody = $tabla.find('tbody');
+        const $nuevaFila = $('<tr>');
+        console.log(`Agregando fila de criterio en modo: ${modo}`);
+
+        if (modo === 'simple') {
+            $nuevaFila.append($('<td>').append($('<input type="text" class="form-control form-control-sm criterio-nombre-input" placeholder="Nombre Ítem">').val(criterioData ? criterioData.nombre : '')));
+            $nuevaFila.append($('<td>').append($('<textarea class="form-control form-control-sm criterio-descripcion-general-input" rows="2" placeholder="Detalle/Descripción..."></textarea>').val(criterioData ? criterioData.descripcion_general : '')));
+            $nuevaFila.append($('<td class="text-center">').append($('<input type="number" class="form-control form-control-sm criterio-max-puntaje-input" placeholder="Ptos" min="0" step="0.1">').val(criterioData ? criterioData.max_puntaje_criterio : '1')));
+        } else { // modo 'niveles'
+            $nuevaFila.append($('<td>').append($('<input type="text" class="form-control form-control-sm criterio-nombre-input" placeholder="Nombre Criterio">').val(criterioData ? criterioData.nombre : '')));
+            $nuevaFila.append($('<td>').append($('<textarea class="form-control form-control-sm criterio-descripcion-general-input" rows="2" placeholder="Desc. General (Opc)"></textarea>').val(criterioData ? criterioData.descripcion_general : '')));
+            $nuevaFila.append($('<td class="text-center">').append($('<input type="number" class="form-control form-control-sm criterio-max-puntaje-input" placeholder="PMax" min="0" step="0.1">').val(criterioData ? criterioData.max_puntaje_criterio : '0')));
+
+            const $headerRow = $tabla.find('thead tr');
+            const numColumnasDeNivel = $headerRow.find('th.nivel-header-cell').length;
+            const nivelNombresDelHeader = [];
+            $headerRow.find('th.nivel-header-cell input.nivel-nombre-input').each(function() {
+                nivelNombresDelHeader.push($(this).val());
+            });
+
+            for (let i = 0; i < numColumnasDeNivel; i++) {
+                let descNivel = '';
+                let puntajeNivel = '';
+                if (criterioData && Array.isArray(criterioData.niveles_detalle)) {
+                    const nivelData = criterioData.niveles_detalle.find(n => n.nombre_nivel === nivelNombresDelHeader[i]);
+                    if (nivelData) {
+                        descNivel = nivelData.descripcion_nivel_especifica || '';
+                        puntajeNivel = nivelData.puntaje_nivel !== undefined && nivelData.puntaje_nivel !== null ? nivelData.puntaje_nivel : '';
+                    }
+                }
+                const $levelDetailCell = $('<td class="descripcion-nivel-cell">');
+                $levelDetailCell.append($('<textarea class="form-control form-control-sm descripcion-nivel-textarea" rows="2" placeholder="Desc. Nivel">').val(descNivel));
+                $levelDetailCell.append($('<input type="number" class="form-control form-control-sm puntaje-nivel-input mt-1" placeholder="Ptos" min="0" step="0.1" style="width: 70px;">').val(puntajeNivel));
+                $nuevaFila.append($levelDetailCell);
+            }
+        }
+        $nuevaFila.append($('<td class="actions-cell text-center">').append('<button type="button" class="btn btn-danger btn-sm accion-btn eliminar-criterio-rubrica" title="Eliminar Criterio"><i class="fas fa-trash-alt"></i></button>'));
+        $tbody.append($nuevaFila);
+    }
+
+    function agregarColumnaNivelRubrica($tabla, nivelNombre = '', $preguntaCard) {
+        console.log(`Agregando columna de nivel: ${nivelNombre || '(Nuevo Nivel)'}`);
+        const numNivelesActuales = $tabla.find('thead th.nivel-header-cell').length;
+        const nuevoNivelNombre = nivelNombre || `Nivel ${numNivelesActuales + 1}`;
+        const $headerRow = $tabla.find('thead tr');
+        const $actionsHeaderCell = $headerRow.find('th.actions-header-cell');
+
+        const $inputGroup = $('<div class="input-group input-group-sm">').append(
+            $('<input type="text" class="form-control nivel-nombre-input" placeholder="Nombre Nivel">').val(nuevoNivelNombre)
+        ).append(
+            $('<button type="button" class="btn btn-outline-danger btn-sm eliminar-columna-nivel-rubrica" title="Eliminar Columna Nivel"><i class="fas fa-times"></i></button>')
+        );
+        const $thNivel = $('<th class="nivel-header-cell text-center" style="min-width: 180px; vertical-align: top;">').append($inputGroup);
+        
+        if ($actionsHeaderCell.length) { $actionsHeaderCell.before($thNivel); } 
+        else { $headerRow.append($thNivel); } // Debería haber una celda de acción
+
+        $tabla.find('tbody tr').each(function() {
+            const $filaCriterio = $(this);
+            const $newLevelCell = $('<td class="descripcion-nivel-cell">');
+            $newLevelCell.append('<textarea class="form-control form-control-sm descripcion-nivel-textarea" rows="2" placeholder="Desc. Nivel"></textarea>');
+            $newLevelCell.append('<input type="number" class="form-control form-control-sm puntaje-nivel-input mt-1" placeholder="Ptos" min="0" step="0.1" style="width: 70px;">');
+            $filaCriterio.find('td.actions-cell').before($newLevelCell);
+        });
+        if ($preguntaCard) actualizarJsonOutputYTextarea($preguntaCard);
+    }
+    
+    function generarJsonDesdeTablaRubrica($preguntaCard) {
+        const tipoRubrica = $preguntaCard.find('.tipo-rubrica-selector').val();
+        const $tabla = $preguntaCard.find('.rubrica-tabla-dinamica');
+        const criterios_array = [];
+        console.log(`Generando JSON para modo: ${tipoRubrica}`);
+
+        if (tipoRubrica === 'simple') {
+            $tabla.find('tbody tr').each(function() {
+                const $fila = $(this);
+                const nombre = $fila.find('.criterio-nombre-input').val().trim() || 'Criterio Sin Nombre';
+                const desc = $fila.find('.criterio-descripcion-general-input').val().trim(); // Para modo simple, esta es la descripción principal
+                const puntaje = parseFloat($fila.find('.criterio-max-puntaje-input').val()) || 0; // En modo simple, este es el puntaje del criterio
+                
+                console.log(`  Criterio Simple: ${nombre}, Desc: ${desc}, Ptos: ${puntaje}`);
+                criterios_array.push({
+                    nombre: nombre,
+                    descripcion_general: desc, // Usar el campo de descripción/detalle
+                    max_puntaje_criterio: puntaje
+                });
+            });
+        } else { // 'niveles'
+            $tabla.find('tbody tr').each(function() {
+                const $filaCriterio = $(this);
+                const nombreCriterio = $filaCriterio.find('.criterio-nombre-input').val().trim() || 'Criterio Sin Nombre';
+                const descGeneral = $filaCriterio.find('.criterio-descripcion-general-input').val().trim();
+                const maxPuntajeCrit = parseFloat($filaCriterio.find('.criterio-max-puntaje-input').val()) || 0;
+                console.log(`  Criterio Niveles: ${nombreCriterio}, DescGen: ${descGeneral}, PMax: ${maxPuntajeCrit}`);
+                
+                const niveles_detalle = [];
+                let tieneNivelesConDatos = false;
+
+                $tabla.find('thead th.nivel-header-cell').each(function(nivelIndex) {
+                    const nombreNivel = $(this).find('input.nivel-nombre-input').val().trim() || `Nivel ${nivelIndex + 1}`;
+                    const $celdaNivelCriterio = $filaCriterio.find('td.descripcion-nivel-cell').eq(nivelIndex);
+                    const descripcionNivel = $celdaNivelCriterio.find('textarea.descripcion-nivel-textarea').val().trim();
+                    const puntajeNivelStr = $celdaNivelCriterio.find('input.puntaje-nivel-input').val();
+                    const puntajeNivel = (puntajeNivelStr !== "" && !isNaN(parseFloat(puntajeNivelStr))) ? parseFloat(puntajeNivelStr) : null;
+                    
+                    console.log(`    Nivel: ${nombreNivel}, Desc: ${descripcionNivel}, PtosNivel: ${puntajeNivel}`);
+                    if (descripcionNivel !== "" || puntajeNivel !== null) {
+                        niveles_detalle.push({
+                            nombre_nivel: nombreNivel,
+                            descripcion_nivel_especifica: descripcionNivel,
+                            puntaje_nivel: puntajeNivel 
+                        });
+                        tieneNivelesConDatos = true;
+                    }
+                });
+                
+                const criterioObj = {
+                    nombre: nombreCriterio,
+                    descripcion_general: descGeneral,
+                    max_puntaje_criterio: maxPuntajeCrit
+                };
+                if (tieneNivelesConDatos) {
+                    criterioObj.niveles_detalle = niveles_detalle;
+                }
+                criterios_array.push(criterioObj);
+            });
+        }
+        const jsonData = { tipo_rubrica: tipoRubrica, criterios: criterios_array };
+        console.log("JSON Generado:", JSON.stringify(jsonData, null, 2));
+        return jsonData;
+    }
+
+    function actualizarJsonOutputYTextarea($preguntaCard) {
+        const $rubricaContainer = $preguntaCard.find('.rubrica-editor-container');
+        if (!$rubricaContainer.length) return;
+        console.log(`Actualizando JSON para pregunta ${$preguntaCard.data('pregunta-index')}`);
+        const jsonData = generarJsonDesdeTablaRubrica($preguntaCard);
+        const jsonString = JSON.stringify(jsonData, null, 2);
+        $rubricaContainer.find('.rubrica-json-output').text(jsonString);
+        $rubricaContainer.find('.rubrica-json-data-storage').val(jsonString).trigger('change'); // Trigger change para validaciones o submits
+    }
+
+    function inicializarOReconstruirRubrica($preguntaCard, jsonDataString) {
+        const $selectorTipo = $preguntaCard.find('.tipo-rubrica-selector');
+        const $tabla = $preguntaCard.find('.rubrica-tabla-dinamica');
+        const $btnAgregarNivel = $preguntaCard.find('.agregar-columna-nivel-rubrica');
+        const preguntaIndex = $preguntaCard.data('pregunta-index');
+        console.log(`Inicializando/Reconstruyendo rúbrica para pregunta ${preguntaIndex}, JSON: ${jsonDataString}`);
+
+        let data = { tipo_rubrica: 'simple', criterios: [] };
+        if (jsonDataString) {
+            try {
+                const parsedData = JSON.parse(jsonDataString);
+                if (parsedData && (parsedData.tipo_rubrica || (parsedData.criterios && Array.isArray(parsedData.criterios)))) {
+                    data.tipo_rubrica = parsedData.tipo_rubrica || 'simple';
+                    data.criterios = parsedData.criterios || [];
+                }
+            } catch (e) { console.warn("JSON rúbrica inválido en init, usando defaults:", e, jsonDataString); }
+        }
+        
+        $selectorTipo.val(data.tipo_rubrica);
+        construirEncabezadoRubrica($tabla, data.tipo_rubrica);
+        $tabla.find('tbody').empty();
+        actualizarAyudaModoRubrica($preguntaCard);
+
+        if (data.tipo_rubrica === 'simple') {
+            $btnAgregarNivel.hide();
+            if (data.criterios.length > 0) {
+                data.criterios.forEach(crit => agregarFilaCriterio($tabla, crit));
+            } else {
+                agregarFilaCriterio($tabla); // Uno de ejemplo
+            }
+        } else { // 'niveles'
+            $btnAgregarNivel.show();
+            let nivelesCabecera = new Set();
+            // Extraer todos los nombres de nivel únicos del primer criterio que tenga niveles (si hay datos)
+            if (data.criterios.length > 0 && data.criterios[0] && Array.isArray(data.criterios[0].niveles_detalle)) {
+                data.criterios[0].niveles_detalle.forEach(n => nivelesCabecera.add(n.nombre_nivel));
+            }
+            // Si no hay niveles definidos en el JSON, añadir algunos por defecto
+            if (nivelesCabecera.size === 0) { 
+                nivelesCabecera.add("Inicial"); 
+                nivelesCabecera.add("Satisfactorio");
+            }
+            
+            // Construir las columnas de nivel en el encabezado
+            Array.from(nivelesCabecera).sort().forEach(n => agregarColumnaNivelRubrica($tabla, n, $preguntaCard));
+            
+            // Poblar los criterios
+            if (data.criterios.length > 0) {
+                data.criterios.forEach(crit => agregarFilaCriterio($tabla, crit));
+            } else {
+                agregarFilaCriterio($tabla, null, $preguntaCard); // Uno de ejemplo
+            }
+        }
+        actualizarJsonOutputYTextarea($preguntaCard); // Actualizar JSON después de poblar
+    }
+
+    // --- Eventos de Rúbrica ---
+    $preguntasContainer.on('change', '.tipo-rubrica-selector', function() {
+        const $preguntaCard = $(this).closest('.pregunta-card');
+        console.log(`Modo de rúbrica cambiado a: ${$(this).val()} para pregunta ${$preguntaCard.data('pregunta-index')}`);
+        // Al cambiar modo, reconstruimos la tabla. Podríamos intentar preservar datos, pero limpiar es más simple.
+        inicializarOReconstruirRubrica($preguntaCard, JSON.stringify({ tipo_rubrica: $(this).val(), criterios: [] }));
+    });
+
+    $preguntasContainer.on('click', '.agregar-criterio-rubrica', function() {
+        const $preguntaCard = $(this).closest('.pregunta-card');
+        console.log(`Agregando criterio para pregunta ${$preguntaCard.data('pregunta-index')}`);
+        agregarFilaCriterio($preguntaCard.find('.rubrica-tabla-dinamica'));
+        actualizarJsonOutputYTextarea($preguntaCard);
+    });
+
+    $preguntasContainer.on('click', '.agregar-columna-nivel-rubrica', function() {
+        const $preguntaCard = $(this).closest('.pregunta-card');
+        if ($preguntaCard.find('.tipo-rubrica-selector').val() === 'niveles') {
+            console.log(`Agregando columna de nivel para pregunta ${$preguntaCard.data('pregunta-index')}`);
+            agregarColumnaNivelRubrica($preguntaCard.find('.rubrica-tabla-dinamica'), '', $preguntaCard);
+        }
+    });
+
+    $preguntasContainer.on('click', '.eliminar-criterio-rubrica', function() {
+        if (confirm('¿Eliminar este criterio?')) {
+            const $preguntaCard = $(this).closest('.pregunta-card');
+            $(this).closest('tr').remove();
+            console.log(`Criterio eliminado para pregunta ${$preguntaCard.data('pregunta-index')}`);
+            actualizarJsonOutputYTextarea($preguntaCard);
+        }
+    });
+
+    $preguntasContainer.on('click', '.eliminar-columna-nivel-rubrica', function() {
+        if (confirm('¿Eliminar esta columna de nivel y todas sus descripciones y puntajes asociados?')) {
+            const $preguntaCard = $(this).closest('.pregunta-card');
+            const $tabla = $preguntaCard.find('.rubrica-tabla-dinamica');
+            const $thToDelete = $(this).closest('th.nivel-header-cell');
+            const nivelIndexToDelete = $tabla.find('thead th.nivel-header-cell').index($thToDelete);
+
+            if (nivelIndexToDelete >= 0) {
+                console.log(`Eliminando columna de nivel índice ${nivelIndexToDelete} para pregunta ${$preguntaCard.data('pregunta-index')}`);
+                $thToDelete.remove();
+                $tabla.find('tbody tr').each(function() {
+                    $(this).find('td.descripcion-nivel-cell').eq(nivelIndexToDelete).remove();
+                });
+                actualizarJsonOutputYTextarea($preguntaCard);
+            }
+        }
+    });
+    
+    // Evento unificado para actualizar JSON cuando CUALQUIER input/textarea DENTRO de la tabla de rúbrica cambie
+    $preguntasContainer.on('input change', '.rubrica-tabla-dinamica input, .rubrica-tabla-dinamica textarea', function() {
+        const $preguntaCard = $(this).closest('.pregunta-card');
+        console.log(`Input/Change detectado en rúbrica de pregunta ${$preguntaCard.data('pregunta-index')}, actualizando JSON.`);
+        actualizarJsonOutputYTextarea($preguntaCard);
+    });
+    // -------------- FIN Rúbrica Interfaz Tabla --------------
+    // -----------------------------------------------------------
+
+    // --- Lógica para Linter Dinámico y Visibilidad (existente) ---
     const $examenForm = $('#examen-form');
     const $globalFormatoSwitch = $('#global-habilitar-formato');
     let initialGlobalStateStr = $examenForm.attr('data-global-formato-habilitado');
     let isGlobalFormatoEnabled = (initialGlobalStateStr === 'true');
-    console.log("Estado inicial global formato:", isGlobalFormatoEnabled, "(Leído:", initialGlobalStateStr, ")");
 
     function toggleFormatoConfigSections() {
-        console.log("Toggling formato sections. Global enabled:", isGlobalFormatoEnabled);
         const $sections = $('#preguntas .formato-config-section');
         if (isGlobalFormatoEnabled) { $sections.slideDown(150); }
         else { $sections.slideUp(150); }
@@ -525,171 +1126,243 @@ $(document).ready(function() {
         let foundSelected = false;
         if (options && Array.isArray(options)) {
              $.each(options, function(index, optionData) {
-                 // Saltar la opción "Ninguno" que viene del backend si existe
                  if (Array.isArray(optionData) && optionData[0] === '' && index === 0) return;
-
                  if (Array.isArray(optionData) && optionData.length >= 2) {
                      let value = optionData[0]; let text = optionData[1];
-                     if (value !== null && value !== undefined && value !== '') { // Ignorar '' explícitamente también
+                     if (value !== null && value !== undefined && value !== '') {
                           let valueStr = String(value); const $option = $('<option>', { value: value, text: text });
                           if (valueStr === initialValue) { $option.prop('selected', true); foundSelected = true; }
                           $select.append($option);
                      }
-                 } else { console.warn("Opt Linter Inesperado:", optionData); }
+                 }
              });
-        } else { console.warn("Opciones Linter no es array:", options); }
-        // Seleccionar 'Ninguno' si no se encontró el valor o si initialValue era vacío
+        }
         if (!foundSelected) { $select.val(''); } else { $select.val(initialValue); }
     }
 
-    // --- Función para actualizar opciones (SIN AJAX) ---
     function updateLinterOptions(selectElement, language, selectedValue = '') {
         const $select = $(selectElement);
-        console.log(`Actualizando linters para lang=${language}, sel=${selectedValue}, selectID=${$select.attr('id')}`);
-        let options = []; // Default a vacío
-
-        // Acceder al objeto global 'lintersDisponibles'
+        let options = [];
         if (language && typeof lintersDisponibles === 'object' && lintersDisponibles && lintersDisponibles[language]) {
             options = lintersDisponibles[language];
-            $select.prop('disabled', false); // Habilitar si hay opciones
+            $select.prop('disabled', false);
         } else {
-            console.warn(`No se encontraron opciones de linter para el lenguaje: ${language}`);
-            $select.prop('disabled', true); // Deshabilitar si no hay opciones
+            $select.prop('disabled', true);
         }
-        populateLinterSelect($select, options, selectedValue); // Poblar con las opciones encontradas (o vacías)
+        populateLinterSelect($select, options, selectedValue);
     }
 
-    // --- Event Listeners ---
     $globalFormatoSwitch.on('change', function() {
         isGlobalFormatoEnabled = $(this).is(':checked');
         $examenForm.attr('data-global-formato-habilitado', isGlobalFormatoEnabled ? 'true' : 'false');
         toggleFormatoConfigSections();
     });
 
-    $preguntasContainer.on('change', '.pregunta-lenguaje', function() { // Delegación en contenedor principal
+    $preguntasContainer.on('change', '.pregunta-lenguaje', function() {
         const selectedLanguage = $(this).val();
         const $linterSelect = $(this).closest('.card-body').find('.pregunta-linter-perfil');
         if($linterSelect.length){ updateLinterOptions($linterSelect, selectedLanguage); }
-        else { console.error("No se encontró .pregunta-linter-perfil"); }
     });
 
-    // --- AGREGAR PREGUNTA (REVISADO) ---
+    // --- Lógica para Agregar y Eliminar Preguntas y Casos (COMPLETA) ---
     $('#agregar-pregunta').on('click', function() {
-        console.log("Agregar Pregunta Clicked");
+        console.log("Botón 'Agregar Pregunta' clickeado.");
         var currentQuestionCount = $preguntasContainer.find('.pregunta-card').length;
-        var newIndex = currentQuestionCount; // Nuevo índice base 0
-        console.log("Nuevo índice será:", newIndex);
+        var newIndex = currentQuestionCount; // Este será el índice para los names de WTForms
+        console.log(`Índice para nueva pregunta: ${newIndex}`);
 
-        var template = $('#pregunta-template').html();
-        if (!template) { console.error("Template #pregunta-template no encontrado!"); return; }
+        var templateHtml = $('#pregunta-template').html();
+        if (!templateHtml) { 
+            console.error("Plantilla de pregunta '#pregunta-template' no encontrada."); 
+            return; 
+        }
 
-        // Reemplazar prefijos de forma segura
-        var newPreguntaHtml = template.replace(/__prefix_num__/g, newIndex + 1);
-        // Usar función para reemplazar prefijos de name/id de forma segura
-        newPreguntaHtml = newPreguntaHtml.replace(/preguntas-__prefix__-/g, function(match) {
-            // Esta función asegura que solo reemplazamos el prefijo real
-            return `preguntas-${newIndex}-`;
-        });
-         newPreguntaHtml = newPreguntaHtml.replace(/for="preguntas-__prefix__-/g, `for="preguntas-${newIndex}-`);
+        // Reemplazar placeholders en la plantilla
+        var newPreguntaHtml = templateHtml.replace(/__prefix_num__/g, newIndex + 1); // Para el display "Pregunta X"
+        newPreguntaHtml = newPreguntaHtml.replace(/__prefix_idx__/g, newIndex); // Para data-attributes y algunos IDs
 
-        // Añadir al DOM
+        // IDs y Names para WTForms (que no usan el sufijo -editor)
+        newPreguntaHtml = newPreguntaHtml.replace(
+            /name="preguntas-__prefix_idx__-enunciado"/g, 
+            `name="preguntas-${newIndex}-enunciado"`
+        );
+        newPreguntaHtml = newPreguntaHtml.replace(
+            /id="preguntas-__prefix_idx__-rubrica_evaluacion"/g, 
+            `id="preguntas-${newIndex}-rubrica_evaluacion"`
+        );
+         newPreguntaHtml = newPreguntaHtml.replace(
+            /name="preguntas-__prefix_idx__-rubrica_evaluacion"/g, 
+            `name="preguntas-${newIndex}-rubrica_evaluacion"`
+        );
+        // ... y así para otros campos de la pregunta que WTForms espera con el índice directo ...
+
+        // ID específico para el textarea que se convertirá en CKEditor
+        var ckeditorTargetId = `ckeditor-enunciado-${newIndex}`;
+        newPreguntaHtml = newPreguntaHtml.replace(
+            /id="preguntas-__prefix_idx__-enunciado"/g, // ID en la plantilla para el textarea
+            `id="${ckeditorTargetId}"`
+        );
+        newPreguntaHtml = newPreguntaHtml.replace(
+            /for="preguntas-__prefix_idx__-enunciado"/g, 
+            `for="${ckeditorTargetId}"`
+        );
+        
         $preguntasContainer.append(newPreguntaHtml);
-        console.log("Nueva pregunta añadida al DOM.");
+        checkPlaceholders(); // Actualizar visibilidad de placeholders
 
-        var $newPreguntaCard = $preguntasContainer.find(`.pregunta-card:eq(${newIndex})`);
-        if(!$newPreguntaCard.length) { console.error("Nueva tarjeta no encontrada por índice!"); return; }
+        var $newPreguntaCard = $preguntasContainer.find(`.pregunta-card:last-child`);
+        $newPreguntaCard.attr('data-pregunta-index', newIndex); // Asignar data-attribute
 
-        // Ocultar placeholder
-        checkPlaceholders();
-
-        // Inicializar la nueva pregunta
-        console.log("Inicializando nueva pregunta...");
-        // 1. Visibilidad de sección formato
-        $newPreguntaCard.find('.formato-config-section').toggle(isGlobalFormatoEnabled); // Usar toggle(boolean)
-
-        // 2. Poblar linter
+        // Inicializar componentes para la nueva pregunta
+        $newPreguntaCard.find('.formato-config-section').toggle(isGlobalFormatoEnabled);
         const defaultLang = $newPreguntaCard.find('.pregunta-lenguaje').val();
         const $newLinterSelect = $newPreguntaCard.find('.pregunta-linter-perfil');
-        console.log("  Inicializando linter para lenguaje:", defaultLang);
-        if (defaultLang && $newLinterSelect.length) {
-            updateLinterOptions($newLinterSelect, defaultLang);
-        } else { console.warn("  No se pudo obtener lenguaje o select de linter."); }
-        // 3. Inicializar tooltips
+        if (defaultLang && $newLinterSelect.length) { 
+            updateLinterOptions($newLinterSelect, defaultLang); 
+        }
         $newPreguntaCard.find('[data-bs-toggle="tooltip"]').each(function() { new bootstrap.Tooltip(this); });
-
-        console.log("Nueva pregunta inicializada.");
-        // No llamar a actualizarIndicesPreguntas aquí
+        
+        console.log(`Intentando inicializar CKEditor para: #${ckeditorTargetId}`);
+        inicializarCKEditor(ckeditorTargetId); 
+        
+        console.log(`Inicializando rúbrica para nueva pregunta (índice ${newIndex})`);
+        $newPreguntaCard.find('.tipo-rubrica-selector')
+                        .attr('id', `tipo-rubrica-selector-${newIndex}`)
+                        .attr('data-pregunta-index', newIndex)
+                        .val('simple'); // Default a simple
+        inicializarOReconstruirRubrica($newPreguntaCard, null); // null para que use defaults y modo 'simple'
+        
+        actualizarIndicesPreguntas(); // MUY IMPORTANTE: Llamar al final para que todos los names/ids sean correctos
+        console.log("Nueva pregunta agregada y componentes inicializados.");
     });
 
-    // --- ELIMINAR PREGUNTA ---
-    $preguntasContainer.on('click', '.eliminar-pregunta', function() { // Delegación en contenedor
-        if (confirm('¿Estás seguro de eliminar esta pregunta y sus casos?')) {
-            $(this).closest('.pregunta-card').remove();
-            actualizarIndicesPreguntas(); // ¡MUY IMPORTANTE aquí!
+    $preguntasContainer.on('click', '.eliminar-pregunta', function() {
+        if (confirm('¿Estás seguro de eliminar esta pregunta y todos sus contenidos (rúbrica, casos de prueba, etc.)?')) {
+            var $preguntaCard = $(this).closest('.pregunta-card');
+            const preguntaIndex = $preguntaCard.data('pregunta-index');
+            console.log(`Eliminando pregunta índice ${preguntaIndex}`);
+
+            // Destruir instancia de CKEditor asociada
+            $preguntaCard.find('textarea.ckeditor-enunciado-target').each(function() { // Asegúrate que la clase sea correcta
+                const editorId = this.id;
+                if (window.ckeditorInstances && window.ckeditorInstances[editorId] && window.ckeditorInstances[editorId].state !== 'destroyed') {
+                    window.ckeditorInstances[editorId].destroy()
+                        .then(() => { 
+                            console.log(`CKEditor para #${editorId} destruido.`);
+                            delete window.ckeditorInstances[editorId];
+                            if (this.ckeditorInstance) delete this.ckeditorInstance;
+                         })
+                        .catch(error => console.error(`Error destruyendo CKEditor para #${editorId}:`, error));
+                }
+            });
+
+            $preguntaCard.remove();
+            actualizarIndicesPreguntas(); // Re-indexar todo
             checkPlaceholders();
+            console.log("Pregunta eliminada.");
         }
     });
 
-    // --- AGREGAR CASO (SIN CAMBIOS) ---
-     $preguntasContainer.on('click', '.agregar-caso', function() { // Delegación
+    $preguntasContainer.on('click', '.agregar-caso', function() {
         var $preguntaCard = $(this).closest('.pregunta-card');
         var $casosContainer = $preguntaCard.find('.casos_de_prueba');
-        var preguntaIndex = $preguntasContainer.find('.pregunta-card').index($preguntaCard);
+        var preguntaIndex = $preguntaCard.data('pregunta-index'); // Usar el data-attribute
         var casoIndex = $casosContainer.find('.caso-card').length;
+        console.log(`Agregando caso ${casoIndex} a pregunta ${preguntaIndex}`);
+
         var template = $('#caso-template').html();
-        if (!template) { console.error("Template #caso-template no encontrado!"); return; }
+        if (!template) { console.error("Plantilla de caso no encontrada."); return; }
 
         var newCasoHtml = template.replace(/__p_idx__/g, preguntaIndex).replace(/__prefix__/g, casoIndex);
-        // Reemplazar prefijos de name/id
-        newCasoHtml = newCasoHtml.replace(/preguntas-__p_idx__-casos_de_prueba-__prefix__-/g, `preguntas-${preguntaIndex}-casos_de_prueba-${casoIndex}-`);
-        newCasoHtml = newCasoHtml.replace(/for="preguntas-__p_idx__-casos_de_prueba-__prefix__-/g, `for="preguntas-${preguntaIndex}-casos_de_prueba-${casoIndex}-`);
-
+        // No es necesario reemplazar los name/id aquí si actualizarIndicesCasos lo hace bien
+        
         $casosContainer.append(newCasoHtml);
-        // No es estrictamente necesario re-indexar todos los casos aquí si solo añadimos al final,
-        // pero es más seguro hacerlo por si acaso.
-        actualizarIndicesCasos($preguntaCard);
+        actualizarIndicesCasos($preguntaCard); // Actualizar solo los casos de esta pregunta
         checkPlaceholders();
     });
 
-     // --- ELIMINAR CASO (SIN CAMBIOS) ---
-    $preguntasContainer.on('click', '.eliminar-caso', function() { // Delegación
+    $preguntasContainer.on('click', '.eliminar-caso', function() {
          if (confirm('¿Eliminar este caso de prueba?')) {
             var $preguntaCard = $(this).closest('.pregunta-card');
             $(this).closest('.caso-card').remove();
-            actualizarIndicesCasos($preguntaCard); // Re-indexar casos restantes
+            actualizarIndicesCasos($preguntaCard); // Actualizar solo los casos de esta pregunta
             checkPlaceholders();
         }
     });
 
+    // --- INICIALIZACIÓN GENERAL AL CARGAR LA PÁGINA ---
+    console.log("Inicializando componentes de la página...");
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl); });
+    
+    checkPlaceholders(); // Llamada inicial
 
-    // --- Inicialización al Cargar la Página ---
-    // Inicializar tooltips
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl) });
-
-    checkPlaceholders(); // Verificar placeholders iniciales
-
-    // Inicializar linters para preguntas existentes al cargar
-    console.log("Inicializando linters para preguntas existentes...");
     $('.pregunta-card').each(function(index) {
         const $card = $(this);
+        $card.attr('data-pregunta-index', index); // Asegurar/Establecer data-pregunta-index
+
+        // Linter
         const initialLanguage = $card.data('initial-language');
-        const initialLinter = $card.data('initial-linter'); // Leer data attribute
+        const initialLinter = $card.data('initial-linter');
         const $linterSelect = $card.find('.pregunta-linter-perfil');
-        console.log(`  Inicializando card index ${index}: Lang='${initialLanguage}', Linter='${initialLinter}'`);
-        if (initialLanguage && $linterSelect.length) {
-            updateLinterOptions($linterSelect, initialLanguage, initialLinter); // Carga y selecciona
-        } else if (!$linterSelect.length) {
-             console.warn(`  No se encontró .pregunta-linter-perfil en card index ${index}`);
+        if (initialLanguage && $linterSelect.length) { 
+            updateLinterOptions($linterSelect, initialLanguage, initialLinter); 
         }
+
+        // CKEditor para enunciados existentes
+        const $enunciadoTextarea = $card.find('textarea[name$="-enunciado"]'); // Buscar por el name que genera WTForms
+        if ($enunciadoTextarea.length) {
+            let enunciadoTextareaId = $enunciadoTextarea.attr('id');
+            // Si WTForms no generó un ID que podamos usar, o si queremos un patrón específico.
+            // Es importante que este ID sea el que se usa en la plantilla también.
+            if (!enunciadoTextareaId || !enunciadoTextareaId.startsWith('ckeditor-enunciado-')) { 
+                enunciadoTextareaId = `ckeditor-enunciado-existente-${index}`; 
+                $enunciadoTextarea.attr('id', enunciadoTextareaId);
+                 // Asegurar que la label apunte al nuevo ID si lo cambiamos
+                $card.find(`label[for="${$enunciadoTextarea.data('original-id')}"]`).attr('for', enunciadoTextareaId);
+
+            }
+            $enunciadoTextarea.addClass('ckeditor-enunciado-target'); // Añadir clase para selección
+            console.log(`Intentando inicializar CKEditor para existente: #${enunciadoTextareaId}`);
+            inicializarCKEditor(enunciadoTextareaId);
+        }
+        
+        // Rúbrica
+        const $selectorTipoRub = $card.find('.tipo-rubrica-selector');
+        $selectorTipoRub.attr('id', `tipo-rubrica-selector-${index}`).attr('data-pregunta-index', index);
+        const jsonDataString = $card.find('.rubrica-json-data-storage').val();
+        inicializarOReconstruirRubrica($card, jsonDataString);
     });
 
-    // Establecer visibilidad inicial de las secciones de formato
-    toggleFormatoConfigSections();
+    toggleFormatoConfigSections(); // Llamar al inicio para la visibilidad del formato
 
-    // Prevenir doble submit
-    $('#examen-form').submit(function() { $(this).find('button[type="submit"]').prop('disabled', true).prepend('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>'); });
+    $('#examen-form').submit(function(e) {
+        console.log("Procesando submit del formulario...");
+        // Sincronizar datos de CKEditor ANTES de que el formulario se envíe
+        $('textarea.ckeditor-enunciado-target').each(function() { // Usar la clase target
+            const editorId = this.id;
+            if (window.ckeditorInstances && window.ckeditorInstances[editorId] && window.ckeditorInstances[editorId].state !== 'destroyed') {
+                this.value = window.ckeditorInstances[editorId].getData();
+                console.log(`Datos de CKEditor para #${editorId} actualizados en textarea.`);
+            } else if (this.ckeditorInstance) { 
+                 this.value = this.ckeditorInstance.getData();
+                 console.log(`Datos de CKEditor (vía this.ckeditorInstance) para #${this.id} actualizados.`);
+            } else {
+                console.warn(`No se encontró instancia de CKEditor para textarea con ID ${this.id} durante el submit.`);
+            }
+        });
+        
+        // Actualizar todos los JSON de rúbrica una última vez antes de enviar
+        console.log("Actualizando todos los JSON de rúbrica antes del submit...");
+        $('.pregunta-card').each(function() {
+            actualizarJsonOutputYTextarea($(this));
+        });
 
+        // Spinner y deshabilitar botón (esto debe ser lo último antes de que el form realmente se envíe)
+        $(this).find('button[type="submit"]').prop('disabled', true).prepend('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>');
+        console.log("Formulario listo para ser enviado.");
+        // No se usa e.preventDefault() aquí para permitir el envío normal del formulario.
+    });
 });
 </script>
 

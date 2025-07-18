@@ -1213,3 +1213,225 @@ Optimization Opportunities:
 All algorithms scale linearly with code size, making this solution efficient
 for typical code analysis scenarios.
 """
+
+try:
+    import copydetect
+except ImportError:
+    copydetect = None
+    log.warning("copydetect no está instalado. El análisis de similitud no funcionará.")
+
+def obtener_sufijo_archivo(lenguaje: str) -> str:
+    return {
+        "python": ".py", "c": ".c", "java": ".java", "pseint": ".psc"
+    }.get(lenguaje.lower(), ".tmp")
+
+def run_similarity_analysis(
+    submissions: List[Tuple[int, str, str]],
+    min_similarity_threshold: float = 25.0,
+    noise_t: int = 25,
+    guarantee_t: int = 25
+) -> List[Dict[str, Any]]:
+    """
+    Ejecuta un análisis de similitud sintáctico en un conjunto de entregas,
+    comparando cada entrega con todas las demás y evitando duplicados y
+    autocomparaciones.
+    """
+    if not copydetect:
+        log.error("copydetect no está disponible. Saltando análisis sintáctico.")
+        return []
+
+    if len(submissions) < 2:
+        log.warning("Se necesitan al menos 2 entregas para realizar el análisis.")
+        return []
+
+    log.info(f"Iniciando análisis sintáctico para {len(submissions)} entregas. Umbral: {min_similarity_threshold}%")
+    results = []
+    
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_extensions = set()
+        for entrega_id, lang, code in submissions:
+            if code and code.strip():
+                suffix = obtener_sufijo_archivo(lang)
+                file_extensions.add(suffix.lstrip('.'))
+                with open(os.path.join(temp_dir, f"{entrega_id}{suffix}"), "w", encoding="utf-8") as f:
+                    f.write(code)
+        
+        try:
+            # --- CORRECCIÓN CLAVE ---
+            # Se elimina el parámetro 'display_t'. Dejamos que la librería nos
+            # devuelva TODOS los resultados y nosotros hacemos el filtrado en Python.
+            detector = copydetect.CopyDetector(
+                test_dirs=[temp_dir], 
+                ref_dirs=[temp_dir], 
+                extensions=list(file_extensions),
+                noise_t=noise_t, 
+                guarantee_t=guarantee_t,
+                silent=True
+            )
+            detector.run()
+            
+            # get_copied_code_list() ahora devolverá más resultados, que filtraremos a continuación.
+            for sim_test, sim_ref, test_path, ref_path, *_ in detector.get_copied_code_list():
+                id1 = int(os.path.splitext(os.path.basename(test_path))[0])
+                id2 = int(os.path.splitext(os.path.basename(ref_path))[0])
+
+                # La lógica anti-duplicados y anti-autocomparación sigue siendo crucial.
+                if id1 < id2:
+                    sim_percent = round(max(sim_test, sim_ref) * 100, 2)
+                    
+                    # Nuestro propio filtrado, más fiable.
+                    if sim_percent >= min_similarity_threshold:
+                        results.append({
+                            "entrega_id_1": id1,
+                            "entrega_id_2": id2,
+                            "similitud": sim_percent
+                        })
+        except Exception as e:
+            log.error("Fallo en copydetect: %s", e, exc_info=True)
+
+    log.info("Análisis sintáctico completado. Se encontraron %d pares únicos sobre el umbral.", len(results))
+    return sorted(results, key=lambda x: x["similitud"], reverse=True)
+
+# Importar librerías necesarias para el análisis semántico
+
+
+try:
+    import torch
+    import torch.nn.functional as F
+    from transformers import RobertaTokenizer, RobertaModel
+    from scipy.spatial.distance import cdist
+except ImportError:
+    torch = None
+    log.warning("PyTorch/Transformers no están instalados. El análisis semántico no funcionará.")
+
+# Se inicializan como None para la carga perezosa (Lazy Loading)
+tokenizer_graphcodebert = None
+model_graphcodebert = None
+
+"""
+def run_semantic_similarity(code1: str, code2: str, similarity_threshold: float = 85.0) -> Optional[float]:
+    global tokenizer_graphcodebert, model_graphcodebert
+
+    if not torch or not cosine:
+        log.error("Librerías de ML no disponibles (torch, scipy).")
+        return None
+
+    if model_graphcodebert is None:
+        try:
+            log.info("Cargando modelo y tokenizador de GraphCodeBERT por primera vez...")
+            tokenizer_graphcodebert = RobertaTokenizer.from_pretrained("YoussefHassan/graphcodebert-plagiarism-detector")
+            model_graphcodebert = RobertaModel.from_pretrained("YoussefHassan/graphcodebert-plagiarism-detector")
+            log.info("Modelo GraphCodeBERT cargado exitosamente.")
+        except Exception as e:
+            log.error(f"Fallo crítico al cargar el modelo GraphCodeBERT: {e}")
+            return None
+    
+    try:
+        inputs1 = tokenizer_graphcodebert(code1, return_tensors="pt", max_length=512, truncation=True)
+        inputs2 = tokenizer_graphcodebert(code2, return_tensors="pt", max_length=512, truncation=True)
+        
+        with torch.no_grad():
+            embedding1 = model_graphcodebert(**inputs1).pooler_output.squeeze()
+            embedding2 = model_graphcodebert(**inputs2).pooler_output.squeeze()
+        
+        similitud_coseno = 1 - cosine(embedding1, embedding2)
+        similitud_percent = round(similitud_coseno * 100, 2)
+
+        if similitud_percent >= similarity_threshold:
+            log.info(f"Similitud semántica calculada: {similitud_percent}% (supera el umbral)")
+        else:
+            log.info(f"Similitud semántica calculada: {similitud_percent}% (por debajo del umbral)")
+
+        return similitud_percent
+        
+    except Exception as e:
+        log.error(f"Error durante el análisis semántico con GraphCodeBERT: {e}", exc_info=True)
+        return None
+"""
+
+def run_semantic_similarity(
+    submissions: List[Tuple[int, str, str]],
+    min_similarity_threshold: float = 50.0
+) -> List[Dict[str, Any]]:
+    """
+    Calcula la similitud semántica para una lista de entregas usando un modelo
+    GraphCodeBERT afinado, comparando todos los pares y devolviendo un ranking.
+    """
+    global tokenizer_graphcodebert, model_graphcodebert
+
+    if not torch:
+        log.error("Librería PyTorch no disponible. Saltando análisis.")
+        return []
+
+    if len(submissions) < 2:
+        log.warning("Se necesitan al menos 2 entregas para el análisis semántico.")
+        return []
+
+    # ---- INICIO: BLOQUE DE CARGA PEREZOSA (LAZY LOADING) ----
+    if model_graphcodebert is None:
+        try:
+            log.info("Cargando modelo de detección de plagio por primera vez (puede tardar)...")
+            model_name = "YoussefHassan/graphcodebert-plagiarism-detector"
+            tokenizer_graphcodebert = RobertaTokenizer.from_pretrained(model_name)
+            model_graphcodebert = RobertaModel.from_pretrained(model_name)
+            model_graphcodebert.eval() # Poner en modo evaluación
+            log.info(f"Modelo '{model_name}' cargado exitosamente.")
+        except Exception as e:
+            log.error(f"Fallo crítico al cargar el modelo GraphCodeBERT: {e}")
+            return []
+    # ---- FIN: BLOQUE DE CARGA PEREZOSA ----
+
+    log.info(f"Iniciando análisis semántico para {len(submissions)} entregas.")
+    results = []
+    
+    try:
+        # 1. Extraer los IDs y el código de las entregas
+        entrega_ids = [sub[0] for sub in submissions]
+        codes_to_encode = [sub[2] for sub in submissions]
+        
+        # 2. Generar todos los embeddings en un solo lote para máxima eficiencia
+        log.info("Generando embeddings para todas las entregas...")
+        
+        # Tokenizar en lote
+        inputs = tokenizer_graphcodebert(
+            codes_to_encode, 
+            padding=True, 
+            truncation=True, 
+            max_length=512, 
+            return_tensors="pt"
+        )
+
+        # Inferencia en lote
+        with torch.no_grad():
+            # Usamos el pooler_output como lo hace el modelo original que elegiste
+            embeddings = model_graphcodebert(**inputs).pooler_output
+        
+        # 3. Comparar cada par de embeddings de forma eficiente
+        log.info("Comparando pares de embeddings...")
+        
+        # Convertir a numpy para usar cdist (más rápido que un bucle de bucles)
+        embeddings_np = embeddings.numpy()
+        
+        # cdist calcula la distancia del coseno (1 - similitud) para todos los pares
+        cosine_dist_matrix = cdist(embeddings_np, embeddings_np, 'cosine')
+        
+        # La similitud es 1 - distancia
+        similarity_matrix = 1 - cosine_dist_matrix
+
+        for i in range(len(embeddings_np)):
+            for j in range(i + 1, len(embeddings_np)):
+                similitud_percent = round(similarity_matrix[i, j] * 100, 2)
+                
+                if similitud_percent >= min_similarity_threshold:
+                    results.append({
+                        "entrega_id_1": entrega_ids[i],
+                        "entrega_id_2": entrega_ids[j],
+                        "similitud": similitud_percent
+                    })
+        
+    except Exception as e:
+        log.error(f"Error durante el análisis semántico: {e}", exc_info=True)
+
+    log.info("Análisis semántico completado. Se encontraron %d pares sobre el umbral.", len(results))
+    return sorted(results, key=lambda x: x["similitud"], reverse=True)
+

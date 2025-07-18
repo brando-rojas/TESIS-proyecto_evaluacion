@@ -133,3 +133,229 @@ body {
         font-size: 0.9rem;
     }
 }
+
+    .enunciado-contenido {
+        line-height: 1.6;
+        font-size: 1rem; /* Ajusta según tu base de tamaño de fuente */
+        color: #212529; /* Color de texto estándar de Bootstrap */
+    }
+
+    .enunciado-contenido p {
+        margin-top: 0;
+        margin-bottom: 1rem; /* Espacio estándar de párrafo de Bootstrap */
+    }
+
+    .enunciado-contenido strong {
+        font-weight: bold;
+    }
+
+    .enunciado-contenido em, .enunciado-contenido i {
+        font-style: italic;
+    }
+     .enunciado-contenido u {
+        text-decoration: underline;
+    }
+    .enunciado-contenido s, .enunciado-contenido strikethrough { /* CKEditor podría usar <s> o <strikethrough> */
+        text-decoration: line-through;
+    }
+
+    .enunciado-contenido ul,
+    .enunciado-contenido ol {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        padding-left: 2rem; /* Indentación estándar para listas */
+    }
+    .enunciado-contenido ul ul,
+    .enunciado-contenido ol ol,
+    .enunciado-contenido ul ol,
+    .enunciado-contenido ol ul {
+        margin-bottom: 0; /* Menos espacio para listas anidadas */
+    }
+
+    .enunciado-contenido li {
+        margin-bottom: 0.25rem;
+    }
+
+    /* Estilos para Encabezados generados por CKEditor */
+    .enunciado-contenido h1, .enunciado-contenido h2, .enunciado-contenido h3,
+    .enunciado-contenido h4, .enunciado-contenido h5, .enunciado-contenido h6 {
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+        font-weight: 500;
+        line-height: 1.2;
+    }
+    .enunciado-contenido h1 { font-size: 2.0rem; }
+    .enunciado-contenido h2 { font-size: 1.75rem; }
+    .enunciado-contenido h3 { font-size: 1.5rem; }
+    .enunciado-contenido h4 { font-size: 1.25rem; }
+
+
+    /* ESTILOS ESPECÍFICOS PARA IMÁGENES DE CKEDITOR */
+    .enunciado-contenido figure.image { 
+        display: block; 
+        margin-top: 1em;
+        margin-bottom: 1em;
+        clear: both; 
+        /* Por defecto, centrar si no hay estilo de alineación específico */
+        margin-left: auto;
+        margin-right: auto;
+        text-align: center; /* Para centrar el figcaption */
+    }
+
+    .enunciado-contenido figure.image img {
+        display: block; 
+        max-width: 100%; 
+        height: auto;   
+        margin-left: auto; 
+        margin-right: auto;
+        border-radius: 0.25rem; /* Bootstrap-like border radius */
+        /* border: 1px solid #dee2e6; Bootstrap-like border color */
+    }
+
+    .enunciado-contenido figure.image figcaption {
+        font-size: 0.875em;
+        color: #6c757d; /* Bootstrap's text-muted color */
+        text-align: center;
+        margin-top: 0.5em;
+    }
+
+    /* Para imágenes redimensionadas por CKEditor (que añade width al style del figure) */
+    .enunciado-contenido figure.image.image_resized { 
+
+            width: 34.85%;
+
+    }
+    .enunciado-contenido figure.image.image_resized img {
+        width: 100%; /* La imagen llena el <figure> redimensionado */
+    }
+
+    /* Estilos de Alineación explícitos de CKEditor */
+    .enunciado-contenido figure.image-style-align-left {
+        float: left;
+        margin-right: 1.5em;
+        margin-left: 0; 
+        /* Si se redimensionó, el width vendrá del style en línea. */
+        /* Si no, podemos darle un max-width para que no sea demasiado grande */
+        max-width: 50%; 
+    }
+    .enunciado-contenido figure.image-style-align-left img {
+        margin-left: 0; 
+        margin-right: 0;
+    }
+
+    .enunciado-contenido figure.image-style-align-right {
+        float: right;
+        margin-left: 1.5em; 
+        margin-right: 0;
+        max-width: 50%;
+    }
+     .enunciado-contenido figure.image-style-align-right img {
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    /* Esta clase es la que CKEditor usa para el texto que fluye alrededor */
+    .enunciado-contenido figure.image-style-side {
+        float: right; /* O left, dependiendo del caso, CKEditor puede tener clases específicas para left-side */
+        margin-left: 1.5em; /* Si es a la derecha */
+        margin-bottom: 0.5em;
+        /* El width vendrá del style en línea del figure */
+    }
+     .enunciado-contenido figure.image-style-side img {
+        width: 100%;
+    }
+
+    /* Limpiar floats después de figuras flotantes */
+    .enunciado-contenido::after,
+    .enunciado-contenido p:has(figure.image[style*="float"])::after, /* Si el float está en línea en el figure */
+    .enunciado-contenido p:has(figure.image-style-align-left)::after,
+    .enunciado-contenido p:has(figure.image-style-align-right)::after,
+    .enunciado-contenido p:has(figure.image-style-side)::after {
+        content: "";
+        display: table;
+        clear: both;
+    }
+    
+    /* Estilos para tablas generadas por CKEditor */
+    .enunciado-contenido table {
+        width: auto; /* O 100% si quieres que ocupen todo el ancho disponible */
+        max-width: 100%;
+        border-collapse: collapse;
+        margin-top: 1em;
+        margin-bottom: 1em;
+        border: 1px solid #dee2e6; /* Estilo de borde de Bootstrap */
+    }
+    .enunciado-contenido th,
+    .enunciado-contenido td {
+        padding: 0.75rem; /* Padding de Bootstrap */
+        vertical-align: top;
+        border: 1px solid #dee2e6;
+    }
+    .enunciado-contenido thead th { /* Encabezados de tabla */
+        vertical-align: bottom;
+        border-bottom-width: 2px;
+        background-color: #f8f9fa; /* Fondo ligero para encabezados */
+        font-weight: bold;
+    }
+
+    /* Estilos para Blockquotes */
+    .enunciado-contenido blockquote {
+        margin: 0 0 1rem;
+        padding: 0.5rem 1rem;
+        border-left: 0.25rem solid #e9ecef; /* Borde izquierdo */
+        color: #6c757d; /* Color de texto apagado */
+        font-style: italic;
+    }
+    .enunciado-contenido blockquote p:last-child {
+        margin-bottom: 0;
+    }
+
+    /* Estilos para Bloques de Código <pre><code> */
+    .enunciado-contenido pre { 
+        display: block;
+        padding: 1rem;
+        margin-top: 0;
+        margin-bottom: 1rem;
+        overflow-x: auto; /* Scroll horizontal para bloques largos */
+        font-size: 0.875em; /* Un poco más pequeño */
+        color: #212529;
+        background-color: #f8f9fa; /* Fondo ligero */
+        border: 1px solid #e9ecef;
+        border-radius: 0.25rem;
+        font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    .enunciado-contenido pre code { /* El <code> dentro de <pre> */
+        padding: 0;
+        font-size: inherit; /* Heredar tamaño del <pre> */
+        color: inherit;
+        background-color: transparent; /* El fondo ya está en <pre> */
+        border-radius: 0;
+    }
+
+    /* Estilos para Código Inline `code` (no dentro de <pre>) */
+    .enunciado-contenido code:not(pre > code) { 
+        padding: 0.2em 0.4em;
+        margin: 0;
+        font-size: 85%;
+        background-color: rgba(27,31,35,.05);
+        border-radius: 3px;
+        font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        color: #d63384; /* Color rosado de Bootstrap para código inline */
+    }
+
+    /* Estilos para enlaces */
+    .enunciado-contenido a {
+        color: #0d6efd; /* Color de enlace de Bootstrap */
+        text-decoration: underline;
+    }
+    .enunciado-contenido a:hover {
+        color: #0a58ca;
+    }
+
+    /* Estilos para Línea Horizontal */
+    .enunciado-contenido hr {
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+        border: 0;
+        border-top: 1px solid rgba(0,0,0,.1);
+    }

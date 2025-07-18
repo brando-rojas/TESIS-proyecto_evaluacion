@@ -13,13 +13,214 @@ import logging
 from datetime import datetime, timezone
 from difflib import unified_diff
 from typing import Optional, Dict, Any, List, Tuple
+import json
+import re
 
 # --- Importaciones de Modelos ---
 from models import (
     Evaluacion, ResultadoDeEvaluacion, db, CasoDePrueba, Pregunta,
     Entrega, AnalisisResultado, HerramientaAnalisis,
-    ConfiguracionExamen, TipoAnalisis
+    ConfiguracionExamen, TipoAnalisis, ResultadoCriterioLLM 
 )
+
+import openai
+
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+if OPENAI_API_KEY:
+    openai.api_key = OPENAI_API_KEY
+else:
+    logging.warning("OPENAI_API_KEY no encontrada en las variables de entorno. El análisis con LLM no funcionará.")
+
+LLM_MODEL_OPENAI = "gpt-3.5-turbo-0125"
+
+def construir_prompt_llm(enunciado: str, codigo_estudiante: str, rubrica_json_str: str, solucion_modelo: Optional[str] = None) -> List[Dict[str, str]]:
+    """
+    Construye el prompt en formato de mensajes para la API de Chat de OpenAI.
+    Ahora la rúbrica se pasa como string para incluirla directamente en el prompt del sistema.
+    """
+    system_message_content = f"""
+Eres un asistente de profesor experto y justo, especializado en evaluar código de programación de estudiantes.
+Tu tarea es analizar el código proporcionado por un estudiante en respuesta a un problema específico y evaluarlo
+rigurosamente según una rúbrica dada.
+
+**Instrucciones Generales:**
+1.  Lee cuidadosamente el enunciado del problema, el código del estudiante, y (si se proporciona) la solución modelo.
+2.  Evalúa el código del estudiante basándote ÚNICAMENTE en los criterios definidos en la RÚBRICA JSON proporcionada.
+3.  Para cada criterio en la rúbrica, asigna un puntaje numérico. Este puntaje no debe exceder el 'max_puntaje' especificado para ese criterio en la rúbrica. El puntaje mínimo es 0.
+4.  Proporciona una justificación breve y constructiva para el puntaje asignado a cada criterio.
+5.  Adicionalmente, escribe un feedback general conciso sobre la solución del estudiante.
+6.  Tu respuesta DEBE ser un objeto JSON válido. No incluyas ningún texto antes o después del objeto JSON.
+
+**Formato de Salida JSON Requerido:**
+El objeto JSON raíz debe tener una clave "evaluacion_llm". El valor de esta clave debe ser otro objeto con las siguientes dos claves:
+  - "feedback_general": (string) Un resumen cualitativo general de la solución del estudiante (máximo 150 palabras).
+  - "resultados_criterios": (array de objetos) Cada objeto en el array representa un criterio evaluado y debe contener:
+    - "criterio_nombre": (string) El nombre exacto del criterio como aparece en la rúbrica.
+    - "puntaje_obtenido": (number) Tu puntaje numérico para este criterio.
+    - "max_puntaje_criterio": (number) El puntaje máximo para este criterio, tal como se define en la rúbrica.
+    - "feedback_criterio": (string) Tu justificación detallada para el puntaje otorgado a este criterio (máximo 100 palabras por criterio).
+
+A continuación, se proporcionará el enunciado, la rúbrica, la solución modelo (si existe) y el código del estudiante.
+---
+RÚBRICA DE EVALUACIÓN (JSON):
+{rubrica_json_str}
+---
+"""
+    user_message_content_parts = [
+        f"ENUNCIADO DEL PROBLEMA:\n{enunciado}\n---"
+    ]
+    if solucion_modelo:
+        user_message_content_parts.append(f"SOLUCIÓN MODELO (Referencia):\n{solucion_modelo}\n---")
+    
+    user_message_content_parts.append(f"CÓDIGO DEL ESTUDIANTE A EVALUAR:\n```\n{codigo_estudiante}\n```\n---")
+    user_message_content_parts.append("Por favor, proporciona tu evaluación en el formato JSON especificado anteriormente.")
+
+    user_message_content = "\n".join(user_message_content_parts)
+
+    return [
+        {"role": "system", "content": system_message_content.strip()},
+        {"role": "user", "content": user_message_content.strip()}
+    ]
+
+
+def llamar_api_openai_llm(messages: List[Dict[str, str]]) -> Optional[Dict[str, Any]]:
+    """Llama a la API de Chat de OpenAI y retorna el contenido de 'evaluacion_llm'."""
+    if not OPENAI_API_KEY:
+        log.error("OPENAI_API_KEY no configurada. Saltando análisis LLM.")
+        return None
+    
+    try:
+        log.info(f"Enviando solicitud a la API de OpenAI (modelo: {LLM_MODEL_OPENAI})...")
+        client = openai.OpenAI() # La API key se toma de la variable de entorno por defecto
+        response = client.chat.completions.create(
+            model=LLM_MODEL_OPENAI,
+            messages=messages,
+            temperature=0.2,  # Más bajo para mayor consistencia en evaluación
+            # max_tokens=1500, # Ajustar según necesidad, pero el modelo puede manejarlo
+            response_format={"type": "json_object"} # Solicitar explícitamente salida JSON
+        )
+        
+        contenido_respuesta = response.choices[0].message.content
+
+        # ———> Imprimir el contenido crudo para depuración <———
+        print("=== Respuesta cruda LLM ===")
+        print(contenido_respuesta)
+        print("============================\n")
+        
+        if not contenido_respuesta:
+            log.error("Respuesta del LLM de OpenAI vacía.")
+            return None
+
+        # Intentar parsear el contenido como JSON
+        try:
+            evaluacion_completa = json.loads(contenido_respuesta)
+            if "evaluacion_llm" in evaluacion_completa:
+                 log.info("Respuesta JSON del LLM recibida y parseada correctamente.")
+                 return evaluacion_completa["evaluacion_llm"] 
+            else:
+                log.error(f"Respuesta JSON del LLM no contiene la clave 'evaluacion_llm'. Respuesta: {contenido_respuesta}")
+                return None
+        except json.JSONDecodeError as e:
+            log.error(f"No se pudo decodificar la respuesta del LLM como JSON. Error: {e}. Respuesta: {contenido_respuesta}")
+            return None
+
+    except openai.APIError as e:
+        log.error(f"Error en la API de OpenAI: {e}")
+        return None
+    except Exception as e:
+        log.error(f"Error inesperado al procesar respuesta del LLM de OpenAI: {e}", exc_info=True)
+        return None
+    
+def ejecutar_analisis_llm(entrega: Entrega, pregunta: Pregunta) -> Tuple[Optional[List[ResultadoCriterioLLM]], Optional[str], float]:
+    """
+    Ejecuta el análisis con LLM de OpenAI para una entrega.
+    Retorna: (lista_resultados_criterios_db, feedback_general_llm, puntaje_total_llm)
+    """
+    codigo_estudiante = entrega.codigo_fuente
+    enunciado = pregunta.enunciado
+    rubrica_json_str = pregunta.rubrica_evaluacion # Asumimos que es un string JSON
+    solucion_modelo = pregunta.solucion_modelo
+
+    lista_resultados_db = []
+    feedback_general_txt = None
+    puntaje_total_llm = 0.0
+
+    if not rubrica_json_str:
+        log.warning(f"Pregunta {pregunta.id} no tiene rúbrica definida para análisis LLM. Saltando.")
+        return None, "Análisis con IA no realizado: Rúbrica no definida.", 0.0
+
+    # Intentar parsear la rúbrica para validación y para extraer max_puntaje
+    try:
+        rubrica_dict = json.loads(rubrica_json_str)
+        if not isinstance(rubrica_dict.get("criterios"), list):
+            raise ValueError("'criterios' debe ser una lista en la rúbrica.")
+        for crit_rubrica in rubrica_dict["criterios"]:
+            if not all(k in crit_rubrica for k in ["nombre", "descripcion_general", "max_puntaje_criterio"]):
+                raise ValueError("Cada criterio en la rúbrica debe tener 'nombre', 'descripcion_general', y 'max_puntaje_criterio'.")
+            if not isinstance(crit_rubrica["max_puntaje_criterio"], (int, float)) or crit_rubrica["max_puntaje_criterio"] < 0:
+                raise ValueError("'max_puntaje_criterio' debe ser un número no negativo.")
+
+    except (json.JSONDecodeError, ValueError) as e:
+        log.error(f"Formato de rúbrica JSON inválido para Pregunta {pregunta.id}: {e}. Rúbrica: {rubrica_json_str}")
+        return None, f"Análisis con IA no realizado: Formato de rúbrica inválido ({e}).", 0.0
+
+
+    messages_prompt = construir_prompt_llm(enunciado, codigo_estudiante, rubrica_json_str, solucion_modelo)
+    # log.debug(f"Prompt para LLM (Pregunta {pregunta.id}):\n{json.dumps(messages_prompt, indent=2)}")
+
+    resultado_api_llm = llamar_api_openai_llm(messages_prompt)
+
+    # ———> Mostrar el JSON ya parseado para que lo veas antes de armar feedback_general_txt
+    if resultado_api_llm is not None:
+        import json as _json
+        print("=== JSON LLM parseado ===")
+        print(_json.dumps(resultado_api_llm, indent=2, ensure_ascii=False))
+        print("==========================\n")
+
+    if resultado_api_llm:
+        feedback_general_txt = resultado_api_llm.get("feedback_general")
+        resultados_criterios_api = resultado_api_llm.get("resultados_criterios", [])
+
+        if isinstance(resultados_criterios_api, list):
+            for criterio_api in resultados_criterios_api:
+                nombre = criterio_api.get("criterio_nombre")
+                puntaje_obtenido_api = criterio_api.get("puntaje_obtenido")
+                # El LLM ahora también debería devolver max_puntaje_criterio según el prompt
+                max_puntaje_api = criterio_api.get("max_puntaje_criterio")
+                feedback_crit = criterio_api.get("feedback_criterio")
+                
+                if nombre is not None and puntaje_obtenido_api is not None and max_puntaje_api is not None:
+                    try:
+                        puntaje_float = float(puntaje_obtenido_api)
+                        max_puntaje_float = float(max_puntaje_api)
+
+                        # Validación y ajuste del puntaje
+                        if puntaje_float > max_puntaje_float:
+                            log.warning(f"Puntaje LLM ({puntaje_float}) para '{nombre}' excede max_puntaje_criterio ({max_puntaje_float}). Ajustando a {max_puntaje_float}.")
+                            puntaje_float = max_puntaje_float
+                        if puntaje_float < 0:
+                            log.warning(f"Puntaje LLM ({puntaje_float}) para '{nombre}' es negativo. Ajustando a 0.")
+                            puntaje_float = 0.0
+
+                        resultado_db = ResultadoCriterioLLM(
+                            criterio_nombre=str(nombre),
+                            puntaje_obtenido_llm=puntaje_float,
+                            max_puntaje_criterio=max_puntaje_float,
+                            feedback_criterio_llm=str(feedback_crit) if feedback_crit else None
+                        )
+                        lista_resultados_db.append(resultado_db)
+                        puntaje_total_llm += puntaje_float
+                    except ValueError:
+                        log.error(f"Puntaje LLM o max_puntaje_criterio para criterio '{nombre}' no son números válidos: {puntaje_obtenido_api}, {max_puntaje_api}")
+                else:
+                    log.warning(f"Resultado de criterio LLM incompleto (faltan claves requeridas): {criterio_api}")
+        else:
+            log.error(f"La clave 'resultados_criterios' del LLM no es una lista: {resultados_criterios_api}")
+            feedback_general_txt = (feedback_general_txt or "") + "\nError: La IA no pudo procesar los criterios de la rúbrica correctamente."
+    else:
+        feedback_general_txt = "Error durante el análisis con IA. No se pudo obtener una evaluación detallada de los criterios."
+
+    return lista_resultados_db, feedback_general_txt, round(puntaje_total_llm, 2)
 
 # --- Importar desde analysis_tools ---
 try:
@@ -52,7 +253,7 @@ if not log.hasHandlers():
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     log.addHandler(handler)
-    log.setLevel(logging.INFO)  # O DEBUG
+    log.setLevel(logging.DEBUG)  # O DEBUG
 
 # --- Constantes de configuración ---
 DEFAULT_TIMEOUT_SEC = 120  # Segundos para cada caso de prueba
@@ -62,22 +263,53 @@ DEFAULT_MAX_DIFF_LINES = 20  # Líneas máximas a mostrar en diferencias
 # === Funciones de Utilidad ===
 # =========================================================
 
-def normalize_line_endings(text: Optional[str]) -> str:
-    """Normaliza los finales de línea a \\n."""
+def normalize_output_flexibly(text: Optional[str]) -> str:
+    """
+    Normaliza una cadena de texto de forma flexible para la comparación.
+    1. Convierte todos los finales de línea a \n.
+    2. Elimina espacios en blanco y tabulaciones al principio y final de CADA LÍNEA.
+    3. Reemplaza secuencias de múltiples espacios/tabulaciones con un solo espacio.
+    4. Ignora mayúsculas y minúsculas.
+    5. Normaliza la representación de números de punto flotante.
+    """
     if text is None:
         return ""
-    return text.replace('\r\n', '\n').replace('\r', '\n')
+    
+    # 1. Normalizar saltos de línea y quitar espacios al inicio/final del texto completo
+    normalized_text = text.replace('\r\n', '\n').replace('\r', '\n').strip()
+    
+    # 2. Procesar cada línea individualmente
+    lines = normalized_text.split('\n')
+    processed_lines = []
+    for line in lines:
+        # 3. Quitar espacios al inicio/final de la línea y reducir espacios intermedios
+        line = re.sub(r'\s+', ' ', line.strip())
+        
+        # 4. Normalizar números flotantes en la línea
+        # Busca patrones como "x: -1.2345", "y: 3.14" o simplemente números
+        # y los redondea a un número fijo de decimales (ej. 4)
+        def round_match(match):
+            try:
+                # El grupo 0 es el match completo
+                number = float(match.group(0))
+                return f"{number:.4f}" # Redondear a 4 decimales
+            except (ValueError, IndexError):
+                return match.group(0) # Si no es un número, devolverlo como está
 
+        # Expresión regular para encontrar números flotantes (posiblemente negativos)
+        line = re.sub(r'-?\d+\.\d+', round_match, line)
+        
+        processed_lines.append(line)
+        
+    # 5. Unir las líneas procesadas y convertir todo a minúsculas
+    return '\n'.join(processed_lines).lower()
 
-def normalize_output(output: Optional[str]) -> str:
-    """Normaliza finales de línea para comparación."""
-    return normalize_line_endings(output)
 
 
 def generar_resumen_diferencias(esperado: str, obtenido: str, max_lineas: int = DEFAULT_MAX_DIFF_LINES) -> Optional[str]:
     """Genera resumen de diferencias usando unified_diff."""
-    esperado_norm = normalize_line_endings(esperado)
-    obtenido_norm = normalize_line_endings(obtenido)
+    esperado_norm = normalize_output_flexibly(esperado)
+    obtenido_norm = normalize_output_flexibly(obtenido)
 
     if esperado_norm == obtenido_norm:
         if esperado != obtenido:
@@ -157,9 +389,20 @@ def limpiar_archivos_temporales(source_file_path: Optional[str], ejecutable_path
 def ejecutar_caso_prueba(caso: CasoDePrueba, base_command: List[str], timeout_sec: int) -> ResultadoDeEvaluacion:
     """Ejecuta un único caso de prueba y devuelve el objeto ResultadoDeEvaluacion."""
     args_list = caso.obtener_argumentos()
-    stdin_input = normalize_line_endings(caso.entrada if caso.entrada is not None else "")
+    stdin_input = normalize_output_flexibly(caso.entrada if caso.entrada is not None else "")
     salida_esperada_original = caso.salida_esperada if caso.salida_esperada is not None else ""
-    salida_esperada_norm = normalize_line_endings(salida_esperada_original)
+    
+    # --- LOG INICIAL DE DATOS DEL CASO ---
+    log.debug(f"--- INICIO CASO {caso.id} ---")
+    log.debug(f"Caso ID: {caso.id}, Descripción: {caso.descripcion}")
+    log.debug(f"Argumentos: {args_list}")
+    log.debug(f"Entrada STDIN Original (repr): {repr(caso.entrada)}")
+    log.debug(f"Entrada STDIN Normalizada (repr): {repr(stdin_input)}")
+    log.debug(f"Salida Esperada Original (repr): {repr(salida_esperada_original)}")
+    
+    salida_esperada_norm = normalize_output_flexibly(salida_esperada_original).strip() # <--- AÑADIR .strip() AQUÍ
+    log.debug(f"Salida Esperada Normalizada y Stripped (repr): {repr(salida_esperada_norm)}")
+    # --- FIN LOG INICIAL ---
 
     stdout_obtenido, stderr_obtenido = "", ""
     tiempo_inicio = time.monotonic()
@@ -173,7 +416,7 @@ def ejecutar_caso_prueba(caso: CasoDePrueba, base_command: List[str], timeout_se
         final_command = base_command + args_list
         log.info(f'Ejecutando caso {caso.id} (Desc: {caso.descripcion}): {" ".join(map(shlex.quote, final_command))}')
         if stdin_input: 
-            log.debug(f'  -> Stdin: {repr(stdin_input[:100])}...')
+            log.debug(f'  -> Stdin a enviar: {repr(stdin_input)}') # Mostrar exactamente lo que se envía
 
         estado_ejecucion = "ejecutando"
         execute_process = subprocess.run(
@@ -181,9 +424,9 @@ def ejecutar_caso_prueba(caso: CasoDePrueba, base_command: List[str], timeout_se
             input=stdin_input,
             capture_output=True,
             timeout=timeout_sec,
-            text=True,
-            encoding='utf-8',
-            errors='replace'
+            text=True, # Importante para decodificar a string
+            encoding='utf-8', # Especificar encoding
+            errors='replace'  # Reemplazar caracteres inválidos en la decodificación
         )
         tiempo_fin = time.monotonic()
         tiempo_ejecucion_ms = int((tiempo_fin - tiempo_inicio) * 1000)
@@ -193,20 +436,48 @@ def ejecutar_caso_prueba(caso: CasoDePrueba, base_command: List[str], timeout_se
         stdout_obtenido = execute_process.stdout
         stderr_obtenido = execute_process.stderr
 
-        stdout_obtenido_norm = normalize_line_endings(stdout_obtenido)
+        # --- LOG DE SALIDAS OBTENIDAS ---
+        log.debug(f"--- SALIDAS OBTENIDAS CASO {caso.id} ---")
+        log.debug(f"STDOUT Original (repr): {repr(stdout_obtenido)}")
+        log.debug(f"STDERR Original (repr): {repr(stderr_obtenido)}")
+
+        stdout_obtenido_norm = normalize_output_flexibly(stdout_obtenido).strip() # <--- AÑADIR .strip() AQUÍ
+        log.debug(f"STDOUT Normalizado y Stripped (repr): {repr(stdout_obtenido_norm)}")
+        # --- FIN LOG SALIDAS ---
+
+        # --- COMPARACIÓN ---
         paso_total = (stdout_obtenido_norm == salida_esperada_norm)
+        log.debug(f"Comparación: stdout_obtenido_norm == salida_esperada_norm -> {paso_total}")
+        if not paso_total:
+            log.warning(f"FALLO EN COMPARACIÓN para Caso {caso.id}:")
+            log.warning(f"  Esperado (norm+strip, repr): {repr(salida_esperada_norm)}")
+            log_multiline_string("  Obtenido (norm+strip, repr):", repr(stdout_obtenido_norm)) # Para ver saltos de línea como \n
+            log_multiline_string("  Obtenido (norm+strip, literal):", stdout_obtenido_norm) # Para ver cómo se ve
+            # También es útil ver los bytes para detectar caracteres invisibles
+            log.warning(f"  Esperado (bytes): {salida_esperada_norm.encode('utf-8', 'replace')}")
+            log.warning(f"  Obtenido (bytes): {stdout_obtenido_norm.encode('utf-8', 'replace')}")
+
 
         if codigo_retorno != 0 and stderr_obtenido:
             log.warning(f"Caso {caso.id} tuvo error en stderr (código {codigo_retorno}): {stderr_obtenido[:200]}...")
-            # paso_total = False # Descomentar si error en stderr siempre debe fallar el caso
+            # Si un error en stderr debe hacer fallar el caso aunque el stdout coincida:
+            # if paso_total: # Si había pasado por stdout pero hay error en stderr
+            #     log.warning(f"Caso {caso.id} pasó por STDOUT pero falló por STDERR no vacío.")
+            #     paso_total = False 
 
-        if not paso_total:
+        if not paso_total: # Volver a generar diferencias si paso_total es False
             diferencias_resumen = generar_resumen_diferencias(salida_esperada_norm, stdout_obtenido_norm)
+            if diferencias_resumen:
+                log.warning(f"Resumen de Diferencias Caso {caso.id}:\n{diferencias_resumen}")
+            else:
+                log.warning(f"Caso {caso.id} falló pero generar_resumen_diferencias no encontró diferencias visuales (podría ser espacios finales o caracteres invisibles).")
+
 
         log_level = logging.INFO if paso_total else logging.WARNING
-        log.log(log_level, f'Caso {caso.id} {"OK" if paso_total else "Falló"} ({tiempo_ejecucion_ms} ms)')
+        log.log(log_level, f'Resultado final Caso {caso.id}: {"OK" if paso_total else "Falló"} ({tiempo_ejecucion_ms} ms)')
 
     except subprocess.TimeoutExpired:
+        # ... (tu manejo de Timeout sin cambios) ...
         tiempo_fin = time.monotonic()
         tiempo_ejecucion_ms = int((tiempo_fin - tiempo_inicio) * 1000)
         estado_ejecucion = "timeout"
@@ -214,10 +485,10 @@ def ejecutar_caso_prueba(caso: CasoDePrueba, base_command: List[str], timeout_se
         stdout_obtenido = "<TIMEOUT>"
         paso_total = False
     except Exception as e:
+        # ... (tu manejo de Exception sin cambios) ...
         tiempo_fin = time.monotonic()
         tiempo_ejecucion_ms = int((tiempo_fin - tiempo_inicio) * 1000) if tiempo_inicio else None
         estado_ejecucion = "error_interno_eval"
-        error_msg = f"Error interno evaluador: {type(e).__name__}"
         log.error(f'Excepción caso {caso.id}: {e}', exc_info=True)
         stdout_obtenido = f"<ERROR INTERNO EVALUADOR: {e}>"
         stderr_obtenido = str(e)
@@ -226,11 +497,11 @@ def ejecutar_caso_prueba(caso: CasoDePrueba, base_command: List[str], timeout_se
     # Crear objeto resultado
     resultado_db = ResultadoDeEvaluacion(
         paso=paso_total,
-        salida_obtenida=stdout_obtenido,
+        salida_obtenida=stdout_obtenido, # Guardar el stdout original
         puntos_obtenidos=caso.puntos if paso_total else 0.0,
         caso_de_prueba_id=caso.id,
-        salida_obtenida_repr=repr(stdout_obtenido),
-        salida_esperada_repr=repr(salida_esperada_original),
+        salida_obtenida_repr=repr(stdout_obtenido), # repr del original
+        salida_esperada_repr=repr(salida_esperada_original), # repr del original
         entrada_repr=repr(caso.entrada) if caso.entrada else None,
         argumentos_repr=repr(args_list),
         stderr_obtenido=stderr_obtenido,
@@ -242,6 +513,14 @@ def ejecutar_caso_prueba(caso: CasoDePrueba, base_command: List[str], timeout_se
         fecha_ejecucion=datetime.now(timezone.utc)
     )
     return resultado_db
+
+# Nueva función de utilidad para loggear strings multilínea
+def log_multiline_string(prefix: str, content: str):
+    """Loggea un string que puede tener múltiples líneas, añadiendo un prefijo a cada línea."""
+    for i, line_content in enumerate(content.splitlines()):
+        log.warning(f"{prefix} (línea {i+1}): {line_content}")
+    if not content.splitlines(): # Si es una cadena vacía o solo espacios sin saltos de línea
+        log.warning(f"{prefix} (vacío o solo espacios): {repr(content)}")
 
 
 def compilar_codigo(source_file_path: str, lenguaje: str) -> Tuple[Optional[str], Optional[str], List[str]]:
@@ -419,50 +698,30 @@ def generar_feedback_casos(resultados: List[ResultadoDeEvaluacion]) -> str:
 def guardar_evaluacion_y_resultados(
     evaluacion: Evaluacion, 
     analisis_resultados: List[Optional[AnalisisResultado]],
-    resultados_casos: List[ResultadoDeEvaluacion]
+    resultados_casos: List[ResultadoDeEvaluacion],
+    resultados_llm: Optional[List[ResultadoCriterioLLM]] # Añadido
 ) -> bool:
-    """Guarda todos los resultados de la evaluación en la base de datos de forma transaccional."""
+    # ... (se mantiene igual, pero con el nuevo parámetro resultados_llm) ...
     try:
-        log.debug("Iniciando transacción para guardar resultados...")
         with db.session.begin_nested():
-            if evaluacion not in db.session:
-                db.session.add(evaluacion)
-
-            log.debug(f"Eliminando resultados previos (si existen) para entrega {evaluacion.entrega_id}...")
-            # Usar el ID de la entrega para borrar análisis, ya que pueden existir sin evaluación previa
+            if evaluacion not in db.session: db.session.add(evaluacion)
             AnalisisResultado.query.filter_by(entrega_id=evaluacion.entrega_id).delete()
-            # Si la evaluación ya tenía ID, borrar sus resultados antiguos
             if evaluacion.id:
                 ResultadoDeEvaluacion.query.filter_by(evaluacion_id=evaluacion.id).delete()
-            db.session.flush()  # Aplicar deletes
-
-            # Añadir nuevos resultados
+                ResultadoCriterioLLM.query.filter_by(evaluacion_id=evaluacion.id).delete() # Limpiar previos
+            db.session.flush()
             for analisis in analisis_resultados:
-                if analisis:
-                    log.debug(f"Añadiendo AnalisisResultado...")
-                    analisis.entrega_id = evaluacion.entrega_id
-                    db.session.add(analisis)
-
-            if resultados_casos:
-                log.debug(f"Añadiendo {len(resultados_casos)} ResultadoDeEvaluacion...")
-                db.session.flush()  # Asegurar que evaluacion tenga ID
-                evaluacion_id_actual = evaluacion.id
-                if not evaluacion_id_actual:
-                    log.error("¡FALLO CRÍTICO! No se pudo obtener ID de evaluación después de flush.")
-                    raise ValueError("ID de evaluación no disponible.")
-                
-                for res_caso in resultados_casos:
-                    res_caso.evaluacion_id = evaluacion_id_actual
-                    db.session.add(res_caso)
-
-        db.session.commit()  # Commit de la transacción principal
-        log.info(f"Evaluación {evaluacion.id} y resultados asociados guardados exitosamente.")
+                if analisis: analisis.entrega_id = evaluacion.entrega_id; db.session.add(analisis)
+            eval_id = evaluacion.id or db.session.execute(db.select(Evaluacion.id).filter_by(entrega_id=evaluacion.entrega_id)).scalar_one() # Obtener ID
+            if not eval_id: raise ValueError("ID de evaluación no disponible")
+            evaluacion.id = eval_id # Asegurar que el objeto tenga el ID
+            for res_caso in resultados_casos: res_caso.evaluacion_id = eval_id; db.session.add(res_caso)
+            if resultados_llm:
+                for res_llm in resultados_llm: res_llm.evaluacion_id = eval_id; db.session.add(res_llm)
+        db.session.commit()
         return True
-
     except Exception as e:
-        db.session.rollback()
-        log.error(f"Error guardando resultados: {e}", exc_info=True)
-        return False
+        db.session.rollback(); log.error(f"Error guardando resultados: {e}", exc_info=True); return False
 
 def guardar_evaluacion_error(entrega_id: int, mensaje_error: str) -> bool:
     """Guarda una evaluación con mensaje de error."""
@@ -518,6 +777,8 @@ def evaluar_entrega(entrega: Entrega):
     habilitar_similitud = getattr(config_examen, 'habilitar_similitud', False)
     habilitar_rendimiento = getattr(config_examen, 'habilitar_rendimiento', False)
     
+    habilitar_analisis_llm = getattr(config_examen, 'habilitar_analisis_llm', True)
+
     # Datos principales
     casos_de_prueba = pregunta.casos_de_prueba
     lenguaje = pregunta.lenguaje_programacion.lower() if pregunta.lenguaje_programacion else None
@@ -531,11 +792,26 @@ def evaluar_entrega(entrega: Entrega):
     total_puntos_casos = 0.0
     estado_evaluacion = ESTADO_COMPLETADA
     
+    resultados_criterios_llm_db: Optional[List[ResultadoCriterioLLM]] = None
+    puntaje_llm_obtenido = 0.0
+
     # Componentes de feedback
     feedback_formato = None
     feedback_metricas = None
     feedback_casos = None
     feedback_consolidado = None
+
+    resultados_criterios_llm_db: Optional[List[ResultadoCriterioLLM]] = None # Inicializar
+    
+    total_puntos_casos = 0.0
+    puntaje_llm_obtenido = 0.0 # INICIALIZAR
+    estado_evaluacion = ESTADO_COMPLETADA # Asumir éxito inicial
+    
+    feedback_formato: Optional[str] = None
+    feedback_metricas: Optional[str] = None
+    feedback_casos: Optional[str] = None
+    feedback_llm_general_txt: Optional[str] = None # INICIALIZAR
+    feedback_llm_criterios_str_list: List[str] = [] # INICIALIZAR como lista vacía
 
     try:
         log.info(f"Iniciando evaluación para entrega {entrega.id} (Pregunta {pregunta.id}, Examen {examen.id})")
@@ -623,6 +899,32 @@ def evaluar_entrega(entrega: Entrega):
             else:
                 log.info(f"Análisis de métricas deshabilitado globalmente para examen {examen.id}")
                 feedback_metricas = "--- Análisis de Métricas ---\n(Deshabilitado para este examen)"
+        
+        # 3.5 Análisis con LLM
+        if habilitar_analisis_llm and pregunta.rubrica_evaluacion:
+            log.info(f"Ejecutando análisis con LLM para entrega {entrega.id}...")
+            resultados_criterios_llm_db, feedback_llm_general_txt, puntaje_llm_obtenido = ejecutar_analisis_llm(entrega, pregunta)
+
+            if resultados_criterios_llm_db: # Si hubo resultados de criterios
+                feedback_llm_criterios_str_list.append("\n--- Evaluación Cualitativa (IA) ---")
+                if feedback_llm_general_txt:
+                    feedback_llm_criterios_str_list.append(f"Feedback General (IA): {feedback_llm_general_txt}")
+                
+                feedback_llm_criterios_str_list.append("Detalle por Criterio (IA):")
+                for crit_res in resultados_criterios_llm_db:
+                    max_p_str = f"/{crit_res.max_puntaje_criterio}" if crit_res.max_puntaje_criterio is not None else ""
+                    fb_line = f"- {crit_res.criterio_nombre}: {crit_res.puntaje_obtenido_llm}{max_p_str} pts."
+                    if crit_res.feedback_criterio_llm:
+                        fb_line += f" (Feedback: {crit_res.feedback_criterio_llm})"
+                    feedback_llm_criterios_str_list.append(fb_line)
+                feedback_llm_criterios_str_list.append(f"Puntaje Total Cualitativo (IA): {puntaje_llm_obtenido} pts.")
+            
+            elif feedback_llm_general_txt: # Si SOLO hubo feedback general (quizás error en criterios)
+                feedback_llm_criterios_str_list = ["\n--- Evaluación Cualitativa (IA) ---", feedback_llm_general_txt]
+            # Si no hubo ni resultados ni feedback general, feedback_llm_general_txt sigue siendo None y feedback_llm_criterios_str_list vacía
+
+        elif habilitar_analisis_llm: # Pero no hay rúbrica
+             feedback_llm_criterios_str_list = ["\n--- Evaluación Cualitativa (IA) ---\n(Rúbrica no definida para esta pregunta)"]
 
         # 4. Preparación y Compilación para casos de prueba
         try:
@@ -667,13 +969,18 @@ def evaluar_entrega(entrega: Entrega):
         
         # 6. Combinar Feedback y Guardar Evaluación
         log.info("Combinando feedback y preparando para guardar...")
-        
-        # Si tenemos un reporte consolidado, usarlo como base y añadir los casos
+        # Base con formato+métricas (sea consolidado o por separado)
         if feedback_consolidado:
-            feedback_parts = [feedback_consolidado, feedback_casos]
+            base_report = feedback_consolidado
         else:
-            feedback_parts = [feedback_formato, feedback_metricas, feedback_casos]
+            base_report = "\n\n".join(filter(None, [feedback_formato, feedback_metricas]))
             
+        # Siempre añadimos los casos funcionales y la evaluación de IA
+        feedback_parts = [
+            base_report,
+            feedback_casos,
+            *feedback_llm_criterios_str_list
+        ]
         feedback_final = "\n\n".join(filter(None, feedback_parts)).strip()
         
         if not feedback_final:
@@ -689,19 +996,12 @@ def evaluar_entrega(entrega: Entrega):
 
         evaluacion.puntaje_obtenido = round(total_puntos_casos, 2)
         evaluacion.feedback = feedback_final
+        evaluacion.feedback_llm_general = feedback_llm_general_txt # Guardar feedback general del LLM
         evaluacion.fecha_evaluacion = datetime.now(timezone.utc)
 
-        # Guardar todos los resultados
-        guardado_ok = guardar_evaluacion_y_resultados(
-            evaluacion, analisis_resultados, resultados_casos_db
-        )
-        
-        if not guardado_ok:
+        if not guardar_evaluacion_y_resultados(evaluacion, analisis_resultados, resultados_casos_db, resultados_criterios_llm_db):
             estado_evaluacion = ESTADO_ERROR
-            # Intentar guardar al menos la evaluación con mensaje de error
-            error_info = f"\n\n--- ERROR AL GUARDAR RESULTADOS ---"
-            feedback_final += error_info
-            guardar_evaluacion_error(entrega.id, feedback_final)
+            guardar_evaluacion_error(entrega.id, feedback_final + "\n\n--- ERROR AL GUARDAR RESULTADOS ---")
 
     except Exception as e:
         log.error(f'Error durante evaluación de entrega {entrega.id}: {e}', exc_info=True)

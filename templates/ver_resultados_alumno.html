@@ -24,7 +24,7 @@
             {% for evaluacion in current_user.evaluaciones %}
             <tr>
                 <td>{{ evaluacion.entrega.pregunta.examen.titulo }}</td>
-                <td>{{ evaluacion.entrega.pregunta.enunciado }}</td>
+                <td>{{ evaluacion.entrega.pregunta.enunciado | striptags | truncate(40, True, '...') }}</td>
                 <td>{{ evaluacion.puntaje_obtenido }}</td>
                 <td>{{ evaluacion.entrega.pregunta.puntaje_total }}</td>
                 <td>{{ evaluacion.feedback }}</td>

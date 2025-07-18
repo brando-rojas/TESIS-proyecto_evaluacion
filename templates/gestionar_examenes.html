@@ -3,45 +3,184 @@
 {% block title %}Gestionar Exámenes{% endblock %}
 
 {% block content %}
-<h2 class="mb-4"><i class="fas fa-edit"></i> Gestionar Exámenes</h2>
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0"><i class="fas fa-edit"></i> Gestionar Exámenes</h2>
+        <a href="{{ url_for('crear_examen') }}" class="btn btn-primary"><i class="fas fa-plus"></i> Crear Nuevo Examen</a>
+    </div>
 
-<!-- Tabla de Exámenes -->
-<div class="table-responsive">
-    <table class="table table-striped table-hover">
-        <thead class="table-dark">
-            <tr>
-                <th>ID</th>
-                <th>Título</th>
-                <th>Descripción</th>
-                <th>Fecha de Cierre</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for examen in examenes %}
-            <tr>
-                <td>{{ examen.id }}</td>
-                <td>{{ examen.titulo }}</td>
-                <td>{{ examen.descripcion }}</td>
-                <td>{{ examen.fecha_cierre.strftime('%Y-%m-%d %H:%M') }}</td>
-                <td>
-                    <a href="{{ url_for('editar_examen', examen_id=examen.id) }}" class="btn btn-sm btn-warning">
-                        <i class="fas fa-edit"></i> Editar
-                    </a>
-                    <form action="{{ url_for('eliminar_examen', examen_id=examen.id) }}" method="POST" style="display: inline-block;">
-                        {{ form.hidden_tag() }} <!-- Incluir el CSRF token -->
-                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('¿Estás seguro de eliminar este examen?');">
-                            <i class="fas fa-trash-alt"></i> Eliminar
-                        </button>
-                    </form>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="5" class="text-center">No hay exámenes disponibles.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Título del Examen</th>
+                            <th>Curso</th>
+                            <th>Preguntas</th>
+                            <th>Fecha de Cierre</th>
+                            <th class="text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for examen in examenes %}
+                        <tr>
+                            <td>
+                                <!-- CORRECCIÓN: Se ha eliminado el enlace <a> que envolvía el título -->
+                                <span class="fw-bold">{{ examen.titulo }}</span>
+                            </td>
+                            <td>{{ examen.horario.oferta_de_curso.curso.nombre }}</td>
+                            <td>{{ examen.preguntas|length }}</td>
+                            <td>{{ examen.fecha_cierre.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td class="text-center">
+                                <div class="btn-group" role="group" aria-label="Acciones del Examen">
+                                    
+                                    <!-- Botón principal para Evaluar en Lote -->
+                                    <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalEvaluacionLote" data-examen-id="{{ examen.id }}" data-examen-titulo="{{ examen.titulo }}" title="Evaluar entregas en bloque">
+                                        <i class="fas fa-upload"></i> Evaluar en Lote
+                                    </button>
+
+                                    <!-- Botón principal para Descargar Evaluaciones -->
+                                    <a href="{{ url_for('descargar_evaluaciones', examen_id=examen.id) }}" class="btn btn-info btn-sm" title="Descargar todas las evaluaciones en un ZIP">
+                                        <i class="fas fa-file-archive"></i> Descargar Evaluaciones
+                                    </a>
+                                    
+                                    <!-- Menú desplegable para otras acciones -->
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                            Más
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li><a class="dropdown-item" href="{{ url_for('editar_examen', examen_id=examen.id) }}"><i class="fas fa-edit fa-fw me-2"></i>Editar Examen</a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <button class="dropdown-item analysis-btn" 
+                                                        data-url="{{ url_for('analizar_similitud_examen', examen_id=examen.id, tipo_analisis='sintactico') }}"
+                                                        data-message="Análisis Sintáctico (Rápido)...">
+                                                    <i class="fas fa-user-secret fa-fw me-2"></i>Análisis Sintáctico
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <button class="dropdown-item analysis-btn" 
+                                                        data-url="{{ url_for('analizar_similitud_examen', examen_id=examen.id, tipo_analisis='semantico') }}"
+                                                        data-message="Análisis Semántico (Lento). Puede tardar varios minutos...">
+                                                    <i class="fas fa-brain fa-fw me-2"></i>Análisis Semántico
+                                                </button>
+                                            </li>
+                                            <li><a class="dropdown-item" href="{{ url_for('ver_similitud', examen_id=examen.id) }}"><i class="fas fa-search fa-fw me-2"></i>Ver Resultados Similitud</a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <form action="{{ url_for('eliminar_examen', examen_id=examen.id) }}" method="POST" class="d-inline">
+                                                    {{ form.hidden_tag() }}
+                                                    <button type="submit" class="dropdown-item text-danger" onclick="return confirm('¿Estás seguro de eliminar este examen y todas sus entregas? Esta acción es irreversible.');"><i class="fas fa-trash-alt fa-fw me-2"></i>Eliminar Examen</button>
+                                                </form>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center">No has creado ningún examen todavía.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
+
+<!-- Modal Único para Evaluación en Lote -->
+<div class="modal fade" id="modalEvaluacionLote" tabindex="-1" aria-labelledby="modalEvaluacionLoteLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEvaluacionLoteLabel">Evaluación en Lote</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formEvaluacionLote" method="POST" enctype="multipart/form-data">
+                {{ form.hidden_tag() }} <!-- CSRF Token del formulario principal -->
+                <div class="modal-body">
+                    <p>Vas a subir las entregas para el examen: <strong id="nombreExamenModal"></strong>.</p>
+                    <div class="mb-3">
+                        <label for="zip_file" class="form-label"><strong>Seleccionar archivo ZIP</strong></label>
+                        <input class="form-control" type="file" id="zip_file" name="zip_file" accept=".zip" required>
+                    </div>
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading"><i class="fas fa-info-circle"></i> Instrucciones</h6>
+                        <p class="mb-1">El archivo ZIP debe contener los archivos de código de los estudiantes.</p>
+                        <p class="mb-0">El nombre de cada archivo debe seguir el formato: <code>[código_alumno]_P[N° Pregunta].[ext]</code> (Ej: <code>20191251_P1.c</code>).</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-cogs"></i> Iniciar Evaluación</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const modalEvaluacionLote = document.getElementById('modalEvaluacionLote');
+    if (modalEvaluacionLote) {
+        modalEvaluacionLote.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const examenId = button.getAttribute('data-examen-id');
+            const examenTitulo = button.getAttribute('data-examen-titulo');
+            const form = document.getElementById('formEvaluacionLote');
+            const tituloExamen = document.getElementById('nombreExamenModal');
+            const actionUrl = `/docente/examen/${examenId}/evaluar_en_lote`;
+            form.setAttribute('action', actionUrl);
+            tituloExamen.textContent = examenTitulo;
+        });
+    }
+
+    document.querySelectorAll('.analysis-btn').forEach(button => {
+        button.addEventListener('click', function(event) {
+            event.preventDefault(); // Prevenir cualquier acción por defecto
+            
+            const btn = this;
+            const url = btn.dataset.url;
+            const message = btn.dataset.message;
+            const csrfToken = '{{ form.csrf_token.current_token }}'; // Obtener el token CSRF
+
+            if (confirm(message)) {
+                // Deshabilitar el botón y mostrar un spinner
+                btn.disabled = true;
+                btn.innerHTML = `
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    Procesando...
+                `;
+
+                // Usar fetch para enviar la petición POST en segundo plano
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken // Enviar el token CSRF en las cabeceras
+                    }
+                })
+                .then(response => {
+                    // La petición se completó, ahora redirigimos a la página de resultados
+                    // independientemente de si hubo éxito o error. El flash message nos lo dirá.
+                    window.location.href = btn.closest('tr').querySelector('a[href*="/similitud"]').href;
+                })
+                .catch(error => {
+                    console.error('Error en la petición de análisis:', error);
+                    alert('Ocurrió un error de red al iniciar el análisis.');
+                    // Restaurar el botón en caso de error de red
+                    btn.disabled = false;
+                    btn.innerHTML = btn.dataset.originalText; // Necesitarías guardar el texto original
+                });
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

@@ -33,7 +33,7 @@
                     </h2>
                     <div id="preguntaBody" class="accordion-collapse collapse" data-bs-parent="#preguntaAccordion">
                         <div class="accordion-body">
-                            <div class="pregunta-text">{{ evaluacion.entrega.pregunta.enunciado }}</div>
+                            <div class="enunciado-contenido">{{ evaluacion.entrega.pregunta.enunciado | safe }}</div>
                         </div>
                     </div>
                 </div>
@@ -215,6 +215,35 @@
                 <i class="fas fa-info-circle"></i> Los casos marcados como <span class="badge bg-secondary"><i class="fas fa-eye-slash"></i> Oculto</span> son visibles para ti como profesor, pero no para los estudiantes.
             </div>
         </div>
+
+        {# --- INICIO: Nueva sección para la Rúbrica LLM EDITABLE --- #}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-clipboard-check"></i> Evaluación Detallada por Rúbrica (Editable)</h5>
+                <button type="submit" form="form-modificar-rubrica" class="btn btn-success btn-sm">
+                    <i class="fas fa-save"></i> Guardar Cambios en Rúbrica
+                </button>
+            </div>
+            <div class="card-body">
+                {% if evaluacion.feedback_llm_general %}
+                <div class="feedback-general-box mb-4">
+                    <h6 class="feedback-title"><i class="fas fa-solid fa-brain me-2"></i>Feedback General de la IA</h6>
+                    <p class="mb-0">{{ evaluacion.feedback_llm_general }}</p>
+                </div>
+                {% endif %}
+                <form id="form-modificar-rubrica" method="POST" action="{{ url_for('modificar_calificacion_llm', evaluacion_id=evaluacion.id) }}">
+                    {{ csrf_form.hidden_tag() }}
+                    <input type="hidden" name="nuevos_datos_rubrica_json" id="nuevos_datos_rubrica_json">
+                    
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover" id="tabla-rubrica-evaluacion-{{ evaluacion.id }}">
+                            <thead></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </form>
+            </div>
+        </div>
         
         <div class="mt-3">
             <a href="{{ url_for('ver_resultados') }}" class="btn btn-primary"><i class="fas fa-arrow-left"></i> Volver a Resultados</a>
@@ -269,4 +298,92 @@
         background-color: #e7f1ff;
     }
 </style>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+$(function() {
+    console.log("SCRIPT: Vista del DOCENTE. Iniciando script de rúbrica editable.");
+
+    // 1. OBTENER DATOS DESDE EL TEMPLATE
+    const rubricaData = JSON.parse({{ rubrica_data_json|tojson }});
+    const resultadosLLM = JSON.parse({{ resultados_llm_json|tojson }});
+    const evaluacionId = "{{ evaluacion.id }}";
+    const tablaId = 'tabla-rubrica-evaluacion-' + evaluacionId;
+
+    // 2. FUNCIÓN PARA CONSTRUIR LA TABLA EDITABLE
+    function construirTablaRubricaEditable(tablaId, rubricaData, resultadosLLM) {
+        const $tabla = $('#' + tablaId);
+        $tabla.find('thead').empty();
+        $tabla.find('tbody').empty();
+
+        if (!rubricaData || !rubricaData.criterios || rubricaData.criterios.length === 0) {
+            $tabla.find('tbody').append('<tr><td colspan="4">No hay rúbrica definida para esta pregunta.</td></tr>');
+            return;
+        }
+
+        // Crear cabecera
+        $tabla.find('thead').append(`
+            <tr>
+                <th class="text-start">Criterio</th>
+                <th class="text-start">Feedback (Editable)</th>
+                <th class="text-center" style="width: 120px;">Puntaje (Editable)</th>
+                <th class="text-center" style="width: 120px;">Puntaje Máx.</th>
+            </tr>
+        `);
+
+        const $tbody = $tabla.find('tbody');
+        rubricaData.criterios.forEach(criterio => {
+            const resultadoCriterio = resultadosLLM.find(r => r.criterio_nombre === criterio.nombre) || {};
+            
+            const puntajeObtenido = resultadoCriterio.puntaje_obtenido_llm || 0;
+            const maxPuntaje = criterio.max_puntaje_criterio || 0;
+            const feedback = resultadoCriterio.feedback_criterio_llm || 'Sin feedback.';
+
+            const $filaCriterio = $(`
+                <tr data-criterio-nombre="${criterio.nombre}">
+                    <td><strong>${criterio.nombre}</strong><br><small class="text-muted">${criterio.descripcion_general || ''}</small></td>
+                    <td><textarea class="form-control form-control-sm feedback-editable">${feedback}</textarea></td>
+                    <td class="text-center"><input type="number" class="form-control form-control-sm text-center puntaje-editable" value="${puntajeObtenido.toFixed(1)}" step="0.5" min="0" max="${maxPuntaje}"></td>
+                    <td class="text-center">${maxPuntaje.toFixed(1)}</td>
+                </tr>
+            `);
+            $tbody.append($filaCriterio);
+        });
+    }
+
+    // 3. LÓGICA PARA ENVIAR EL FORMULARIO
+    $('#form-modificar-rubrica').on('submit', function(e) {
+        e.preventDefault(); // Detener el envío normal
+        console.log("Formulario de rúbrica enviado. Recopilando datos...");
+
+        let nuevosDatos = { criterios: [] };
+        $('#' + tablaId + ' tbody tr').each(function() {
+            const $fila = $(this);
+            const nombreCriterio = $fila.data('criterio-nombre');
+            
+            if(nombreCriterio) { // Asegurarse de que es una fila de criterio
+                const puntajeEditado = $fila.find('.puntaje-editable').val();
+                const feedbackEditado = $fila.find('.feedback-editable').val();
+
+                nuevosDatos.criterios.push({
+                    criterio_nombre: nombreCriterio,
+                    puntaje_obtenido_llm_editado: parseFloat(puntajeEditado),
+                    feedback_criterio_llm_editado: feedbackEditado
+                });
+            }
+        });
+
+        console.log("Datos recopilados:", nuevosDatos);
+        
+        // Colocar el JSON en el campo oculto y enviar el formulario
+        $('#nuevos_datos_rubrica_json').val(JSON.stringify(nuevosDatos));
+        this.submit();
+    });
+
+    // 4. LLAMAR A LA FUNCIÓN PARA CONSTRUIR LA TABLA
+    construirTablaRubricaEditable(tablaId, rubricaData, resultadosLLM);
+});
+</script>
 {% endblock %}

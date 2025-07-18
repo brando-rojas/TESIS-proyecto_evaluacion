@@ -72,7 +72,7 @@ class CasoDePruebaForm(FlaskForm):
     es_oculto = BooleanField('Caso Oculto', default=False)
 
 class PreguntaForm(FlaskForm):
-    enunciado = TextAreaField('Enunciado de la Pregunta', validators=[DataRequired(), Length(max=1000)])
+    enunciado = TextAreaField('Enunciado de la Pregunta', validators=[DataRequired(), Length(max=10000)])
     puntaje_total = FloatField('Puntaje Total', validators=[DataRequired()])
     lenguaje_programacion = SelectField('Lenguaje de Programación', choices=LENGUAJES_SOPORTADOS, validators=[DataRequired()])
     linter_perfil = SelectField(
@@ -105,7 +105,7 @@ class PreguntaForm(FlaskForm):
  
 class CrearExamenForm(FlaskForm):
     titulo = StringField('Título del Examen', validators=[DataRequired(), Length(max=200)])
-    descripcion = TextAreaField('Descripción', validators=[DataRequired(), Length(max=1000)])
+    descripcion = TextAreaField('Descripción', validators=[Length(max=1000)])
     fecha_cierre = DateTimeField(
         'Fecha y Hora de Cierre',
         validators=[DataRequired(message="La fecha de cierre es obligatoria.")],
@@ -150,3 +150,6 @@ class EntregaForm(FlaskForm):
     
 class DeleteForm(FlaskForm):
     submit = SubmitField('Eliminar')
+
+class DummyForm(FlaskForm):
+    pass  # This is an empty form to handle CSRF token if needed

@@ -148,7 +148,7 @@
                             <td>{{ evaluacion.id }}</td>
                             <td>{{ evaluacion.entrega.pregunta.examen.titulo }}</td>
                             <td title="{{ evaluacion.entrega.pregunta.enunciado }}">
-                                {{ evaluacion.entrega.pregunta.enunciado | truncate(40, True, '...') }}
+                                {{ evaluacion.entrega.pregunta.enunciado | striptags | truncate(40, True, '...') }}
                             </td>
                             <td>
                                 <div class="d-flex align-items-center">

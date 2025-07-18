@@ -1,17 +1,23 @@
 # routes.py
 
 from app import app
-from flask import render_template, redirect, url_for, flash, request, make_response
+from flask import render_template, redirect, url_for, flash, request, make_response, jsonify, current_app, send_file
 from models import db, Usuario, Examen, Pregunta, Entrega, Evaluacion, CasoDePrueba, Horario, OfertaDeCurso, Curso, usuario_horario
 from models import *
 from flask_login import login_user, logout_user, login_required, current_user
 from forms import LoginForm, RegistroForm, CrearExamenForm, EditarExamenForm, PreguntaForm, EntregaForm, DeleteForm, CasoDePruebaForm, LENGUAJES_SOPORTADOS
 from evaluator import evaluar_entrega
+from analysis_tools import run_similarity_analysis, run_semantic_similarity
 from datetime import datetime
 import sys
 import json
 import os
 from werkzeug.utils import secure_filename
+import zipfile
+import io
+import uuid
+import pandas as pd
+from bs4 import BeautifulSoup
 
 # Define una carpeta para almacenar las subidas
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -84,7 +90,7 @@ def obtener_evaluaciones_por_examen(examen_id=None, curso_id=None):
     ids_ultimas_evaluaciones = [eval_id for eval_id, _ in ultimas_entregas.values()]
     
     # Filtrar las evaluaciones originales para quedarnos solo con las últimas
-    return [eval for eval in evaluaciones if eval.id in ids_ultimas_evaluaciones]
+    return Evaluacion.query.filter(Evaluacion.id.in_(ids_ultimas_evaluaciones))
 
 def calcular_estadisticas_evaluaciones(evaluaciones):
     """
@@ -368,6 +374,7 @@ def responder_pregunta(pregunta_id):
     
     return render_template('responder_pregunta.html', pregunta=pregunta, form=form)
 
+"""
 @app.route('/resultado/<int:entrega_id>')
 @login_required
 def ver_resultado(entrega_id):
@@ -382,6 +389,123 @@ def ver_resultado(entrega_id):
         return redirect(url_for('dashboard'))
 
     return render_template('ver_resultado.html', evaluacion=evaluacion)
+"""
+from models import db, Entrega, Evaluacion, ResultadoCriterioLLM, Pregunta, Examen
+from forms import DummyForm
+from datetime import datetime
+
+@app.route('/resultado/<int:entrega_id>')
+@login_required
+def ver_resultado(entrega_id):
+    entrega = Entrega.query.get_or_404(entrega_id)
+    # Verificar permisos
+    if entrega.alumno_id != current_user.id:
+        flash('No tienes permiso para ver este resultado.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    evaluacion = entrega.evaluacion
+    if not evaluacion:
+        flash('La entrega aún no ha sido evaluada.', 'warning')
+        return redirect(url_for('dashboard'))
+
+    # --- DATOS PARA LA RÚBRICA ---
+    rubrica_json_str = entrega.pregunta.rubrica_evaluacion
+    rubrica_data = None
+    if rubrica_json_str:
+        try:
+            rubrica_data = json.loads(rubrica_json_str)
+            print(f"Rubrica data successfully loaded: {rubrica_data}")  # Debug log
+        except json.JSONDecodeError:
+            rubrica_data = {"tipo_rubrica": "error", "criterios": []}  # Default en caso de error
+
+    # Obtener los resultados del LLM
+    resultados_llm_list = []
+    if evaluacion.resultados_criterios_llm:
+        for res_llm in evaluacion.resultados_criterios_llm:
+            resultados_llm_list.append({
+                "criterio_nombre": res_llm.criterio_nombre,
+                "puntaje_obtenido_llm": res_llm.puntaje_obtenido_llm,
+                "max_puntaje_criterio_rubrica": res_llm.max_puntaje_criterio,
+                "feedback_criterio_llm": res_llm.feedback_criterio_llm,
+            })
+        print(f"Resultados LLM: {resultados_llm_list}")  # Debug log
+
+    return render_template(
+        'ver_resultado.html',
+        evaluacion=evaluacion,
+        rubrica_data_json=json.dumps(rubrica_data),
+        resultados_llm_json=json.dumps(resultados_llm_list),
+    )
+
+# Route to handle the LLM rubric table rendering
+@app.route('/docente/evaluacion/<int:evaluacion_id>/modificar_rubrica_llm', methods=['POST'])
+@login_required
+def modificar_calificacion_llm(evaluacion_id):
+    if current_user.rol != 'docente':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    evaluacion = Evaluacion.query.get_or_404(evaluacion_id)
+
+    try:
+        nuevos_datos_rubrica_str = request.form.get('nuevos_datos_rubrica_json')
+        if not nuevos_datos_rubrica_str:
+            flash("No se recibieron datos de la rúbrica modificada.", "danger")
+            return redirect(url_for('ver_resultado', entrega_id=evaluacion.entrega_id))
+
+        nuevos_datos_rubrica = json.loads(nuevos_datos_rubrica_str)
+        rubrica_estructura_json = evaluacion.entrega.pregunta.rubrica_evaluacion
+        rubrica_estructura = json.loads(rubrica_estructura_json)
+
+        nuevo_puntaje_total_llm = 0
+        for criterio_estructura in rubrica_estructura.get('criterios', []):
+            nombre_criterio = criterio_estructura.get('nombre')
+            for crit_nuevo_dato in nuevos_datos_rubrica.get('criterios', []):
+                if crit_nuevo_dato.get('criterio_nombre') == nombre_criterio:
+                    puntaje_nuevo = float(crit_nuevo_dato.get('puntaje_obtenido_llm_editado', 0))
+                    feedback_nuevo = crit_nuevo_dato.get('feedback_criterio_llm_editado')
+
+                    # Buscar el resultado de LLM existente
+                    res_llm_existente = ResultadoCriterioLLM.query.filter_by(
+                        evaluacion_id=evaluacion.id,
+                        criterio_nombre=nombre_criterio
+                    ).first()
+
+                    if res_llm_existente:
+                        res_llm_existente.puntaje_obtenido_llm = puntaje_nuevo
+                        if feedback_nuevo:
+                            res_llm_existente.feedback_criterio_llm = feedback_nuevo
+                    else:
+                        # Si no existe, crear un nuevo resultado
+                        res_llm_existente = ResultadoCriterioLLM(
+                            evaluacion_id=evaluacion.id,
+                            criterio_nombre=nombre_criterio,
+                            puntaje_obtenido_llm=puntaje_nuevo,
+                            max_puntaje_criterio=criterio_estructura.get('max_puntaje_criterio'),
+                            feedback_criterio_llm=feedback_nuevo
+                        )
+                        db.session.add(res_llm_existente)
+
+                    nuevo_puntaje_total_llm += puntaje_nuevo
+
+        # Actualizar puntaje total de la evaluación
+        evaluacion.puntaje_obtenido = nuevo_puntaje_total_llm
+        db.session.commit()
+        flash('Calificación de la rúbrica IA actualizada.', 'success')
+        print(f"Evaluación {evaluacion_id} modificada correctamente con nuevos puntajes LLM.")  # Debug log
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al modificar la calificación de la rúbrica: {str(e)}', 'danger')
+        print(f"Error al modificar calificación LLM para evaluación {evaluacion_id}: {e}")  # Debug log
+
+    return redirect(url_for('ver_resultado', entrega_id=evaluacion.entrega_id))
+
+# Add additional logs for the template rendering flow
+def render_table_log(data):
+    print(f"Rendering table with {len(data)} rows.")  # Debug log
+    for row in data:
+        print(f"Row data: {row}")  # Check the data for each row
+
 
 @app.route('/docente/gestionar_examenes')
 @login_required
@@ -894,6 +1018,224 @@ def eliminar_examen(examen_id):
     
     return redirect(url_for('gestionar_examenes'))
 
+@app.route('/docente/examen/<int:examen_id>/analizar_similitud', methods=['POST'])
+@login_required
+def analizar_similitud_examen(examen_id):
+    if current_user.rol != 'docente':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    examen = Examen.query.get_or_404(examen_id)
+    if examen.horario not in current_user.horarios:
+        flash('No tienes acceso a este examen.', 'danger')
+        return redirect(url_for('gestionar_examenes'))
+
+    # Obtener las últimas entregas (lógica que ya tenías y es correcta)
+    preguntas_ids = [p.id for p in examen.preguntas]
+    if not preguntas_ids:
+        flash('El examen no tiene preguntas configuradas.', 'warning')
+        return redirect(url_for('gestionar_examenes'))
+    
+    subquery = db.session.query(
+        Entrega.alumno_id,
+        Entrega.pregunta_id,
+        func.max(Entrega.fecha_entrega).label('ultima_fecha')
+    ).filter(Entrega.pregunta_id.in_(preguntas_ids)).group_by(Entrega.alumno_id, Entrega.pregunta_id).subquery()
+
+    ultimas_entregas = db.session.query(Entrega).join(
+        subquery,
+        (Entrega.alumno_id == subquery.c.alumno_id) &
+        (Entrega.pregunta_id == subquery.c.pregunta_id) &
+        (Entrega.fecha_entrega == subquery.c.ultima_fecha)
+    ).all()
+    
+    if len(ultimas_entregas) < 2:
+        flash('No hay suficientes entregas de diferentes alumnos para realizar un análisis.', 'info')
+        return redirect(url_for('gestionar_examenes'))
+
+    submissions_data = [
+        (e.id, e.pregunta.lenguaje_programacion, e.codigo_fuente) 
+        for e in ultimas_entregas if e.codigo_fuente
+    ]
+    
+    # --- INICIO DE LA LÓGICA DE SELECCIÓN DE ANÁLISIS ---
+    
+    tipo_analisis = request.args.get('tipo_analisis', 'sintactico') # Default a sintáctico
+    
+    if tipo_analisis == 'semantico':
+        flash('Iniciando análisis semántico. Este proceso es intensivo y puede tardar varios minutos. Por favor, ten paciencia.', 'info')
+        similarity_results = run_semantic_similarity(submissions=submissions_data)
+        tipo_feedback = "semántico"
+    else: # Por defecto, o si es 'sintactico'
+        flash('Iniciando análisis sintáctico...', 'info')
+        similarity_results = run_similarity_analysis(submissions=submissions_data)
+        tipo_feedback = "sintáctico"
+        
+    # --- FIN DE LA LÓGICA DE SELECCIÓN ---
+
+    # El resto del código para guardar los resultados se mantiene igual.
+    # Limpiar resultados anteriores para el examen.
+    entregas_ids_a_limpiar = [e.id for e in Entrega.query.filter(Entrega.pregunta_id.in_(preguntas_ids))]
+    AnalisisSimilitud.query.filter(
+        (AnalisisSimilitud.entrega_id_1.in_(entregas_ids_a_limpiar)) |
+        (AnalisisSimilitud.entrega_id_2.in_(entregas_ids_a_limpiar))
+    ).delete(synchronize_session=False)
+
+    try:
+        for res in similarity_results:
+            analisis = AnalisisSimilitud(
+                entrega_id_1=res['entrega_id_1'],
+                entrega_id_2=res['entrega_id_2'],
+                porcentaje_similitud=res['similitud']
+            )
+            db.session.add(analisis)
+        db.session.commit()
+        flash(f'Análisis {tipo_feedback} completado. Se encontraron {len(similarity_results)} pares sospechosos.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al guardar los resultados de similitud: {e}', 'danger')
+
+    return redirect(url_for('ver_similitud', examen_id=examen_id))
+
+
+@app.route('/docente/examen/<int:examen_id>/similitud')
+@login_required
+def ver_similitud(examen_id):
+    """
+    Endpoint para mostrar el ranking de similitud de un examen.
+    """
+    if current_user.rol != 'docente':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    examen = Examen.query.get_or_404(examen_id)
+    if examen.horario not in current_user.horarios:
+        flash('No tienes acceso a este examen.', 'danger')
+        return redirect(url_for('gestionar_examenes'))
+        
+    # Consultar los resultados de similitud guardados, ordenados por el más alto primero
+    preguntas_ids = [p.id for p in examen.preguntas]
+    entregas_ids = [e.id for e in Entrega.query.filter(Entrega.pregunta_id.in_(preguntas_ids))]
+    
+    resultados_similitud = AnalisisSimilitud.query.filter(
+        (AnalisisSimilitud.entrega_id_1.in_(entregas_ids)) | 
+        (AnalisisSimilitud.entrega_id_2.in_(entregas_ids))
+    ).order_by(AnalisisSimilitud.porcentaje_similitud.desc()).all()
+    
+    # Para evitar N+1 queries en la plantilla, precargamos las entregas en un diccionario
+    entregas_necesarias_ids = set()
+    for res in resultados_similitud:
+        entregas_necesarias_ids.add(res.entrega_id_1)
+        entregas_necesarias_ids.add(res.entrega_id_2)
+    
+    entregas_dict = {e.id: e for e in Entrega.query.filter(Entrega.id.in_(list(entregas_necesarias_ids))).all()}
+
+    return render_template(
+        'ver_similitud.html', 
+        examen=examen,
+        resultados=resultados_similitud,
+        entregas_dict=entregas_dict
+    )
+
+# Funcionalidad de corrección en lote
+@app.route('/docente/examen/<int:examen_id>/evaluar_en_lote', methods=['POST'])
+@login_required
+def evaluar_en_lote(examen_id):
+    if current_user.rol != 'docente':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    examen = Examen.query.get_or_404(examen_id)
+    if examen.horario not in current_user.horarios:
+        flash('No tienes acceso a este examen.', 'danger')
+        return redirect(url_for('gestionar_examenes'))
+
+    # 1. Validar la subida del archivo
+    if 'zip_file' not in request.files:
+        flash('No se encontró el archivo ZIP.', 'danger')
+        return redirect(url_for('gestionar_examenes'))
+
+    file = request.files['zip_file']
+    if not file or not file.filename.endswith('.zip'):
+        flash('El archivo debe ser un .zip.', 'danger')
+        return redirect(url_for('gestionar_examenes'))
+
+    # --- INICIO DE LA LÓGICA MEJORADA ---
+
+    # 2. Preparar los mapas para un procesamiento eficiente
+    # Obtenemos las preguntas del examen ORDENADAS por su ID.
+    preguntas_ordenadas = sorted(examen.preguntas, key=lambda p: p.id)
+    # Creamos un mapa: {1: PreguntaObj_ID51, 2: PreguntaObj_ID52, 3: PreguntaObj_ID53, ...}
+    mapa_preguntas = {idx + 1: pregunta for idx, pregunta in enumerate(preguntas_ordenadas)}
+    
+    # Creamos un mapa de alumnos por su código para búsquedas rápidas
+    alumnos_horario = {u.codigo: u for u in examen.horario.alumnos}
+    
+    contador_entregas = 0
+    errores = []
+
+    # 3. Procesar el ZIP en memoria
+    try:
+        zip_buffer = io.BytesIO(file.read())
+        with zipfile.ZipFile(zip_buffer, 'r') as zip_ref:
+            for filename in zip_ref.namelist():
+                if filename.startswith('__MACOSX') or filename.endswith('/'):
+                    continue
+
+                # Parsear el nombre del archivo: "CODIGO_P<num_pregunta>.ext"
+                try:
+                    nombre_base, _ = os.path.splitext(filename)
+                    partes = nombre_base.upper().split('_P') # Usamos upper() para ser tolerantes
+                    codigo_alumno = partes[0]
+                    num_pregunta_str = partes[1]
+                    num_pregunta = int(num_pregunta_str) # Este es el NÚMERO (1, 2, 3...), no el ID
+                except (IndexError, ValueError):
+                    errores.append(f"El archivo '{filename}' no tiene el formato esperado 'CODIGO_P<NUMERO>.ext'.")
+                    continue
+
+                # 4. Validar el alumno y la pregunta usando los mapas
+                alumno = alumnos_horario.get(codigo_alumno)
+                pregunta = mapa_preguntas.get(num_pregunta)
+
+                if not alumno:
+                    errores.append(f"Alumno con código '{codigo_alumno}' no encontrado en este horario (archivo: {filename}).")
+                    continue
+                if not pregunta:
+                    errores.append(f"El número de pregunta P{num_pregunta} no es válido para este examen (archivo: {filename}).")
+                    continue
+
+                # 5. Leer el código y crear la entrega
+                codigo_fuente = zip_ref.read(filename).decode('utf-8', errors='replace')
+                
+                # Opcional: Borrar la entrega anterior de este alumno para esta pregunta
+                Entrega.query.filter_by(alumno_id=alumno.id, pregunta_id=pregunta.id).delete()
+                
+                nueva_entrega = Entrega(
+                    fecha_entrega=datetime.utcnow(),
+                    codigo_fuente=codigo_fuente,
+                    alumno_id=alumno.id,
+                    pregunta_id=pregunta.id
+                )
+                db.session.add(nueva_entrega)
+                db.session.commit()
+                
+                # Lanzar la evaluación automática (esta función ya existe)
+                evaluar_entrega(nueva_entrega) 
+                contador_entregas += 1
+
+        flash(f'Se procesaron y evaluaron {contador_entregas} entregas con éxito.', 'success')
+        for error in errores:
+            flash(error, 'warning')
+
+    except zipfile.BadZipFile:
+        flash('El archivo ZIP está corrupto o no es válido.', 'danger')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ocurrió un error inesperado: {e}', 'danger')
+        print(f"ERROR en evaluación en lote: {e}", exc_info=True)
+
+    return redirect(url_for('gestionar_examenes'))
+
 @app.route('/ver_examenes')
 @login_required
 def ver_examenes():
@@ -927,6 +1269,7 @@ def ver_resultados_alumno():
     evaluaciones = current_user.evaluaciones
     return render_template('ver_resultados_alumno.html', evaluaciones=evaluaciones)
 
+"""
 @app.route('/docente/ver_resultados')
 @login_required
 def ver_resultados():
@@ -957,6 +1300,52 @@ def ver_resultados():
         filtro_examen_id=examen_id,
         filtro_curso_id=curso_id
     )
+"""
+
+@app.route('/docente/ver_resultados')
+@login_required
+def ver_resultados():
+    if current_user.rol != 'docente':
+        flash('Acceso no autorizado.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # 1. Obtener parámetros de la URL para filtros y paginación
+    examen_id = request.args.get('examen_id', type=int)
+    curso_id = request.args.get('curso_id', type=int)
+    page = request.args.get('page', 1, type=int)
+    
+    # 2. Obtener la consulta base de evaluaciones filtradas
+    # ¡OJO! La función obtener_evaluaciones_por_examen devuelve una LISTA, la modificaremos
+    # para que devuelva una QUERY de SQLAlchemy para poder añadirle orden y paginación.
+    
+    # MODIFICACIÓN EN LA FUNCIÓN obtener_evaluaciones_por_examen
+    # Cambia la línea 'return [eval for eval in evaluaciones if eval.id in ids_ultimas_evaluaciones]' por:
+    # return Evaluacion.query.filter(Evaluacion.id.in_(ids_ultimas_evaluaciones))
+    
+    evaluaciones_query = obtener_evaluaciones_por_examen(examen_id, curso_id)
+
+    # 3. Ordenar la consulta por la fecha de evaluación más reciente
+    evaluaciones_query = evaluaciones_query.order_by(Evaluacion.fecha_evaluacion.desc())
+
+    # 4. Aplicar paginación
+    pagination = evaluaciones_query.paginate(page=page, per_page=20, error_out=False)
+    evaluaciones_paginadas = pagination.items
+    
+    # Calcular estadísticas con TODOS los resultados filtrados, no solo los de la página actual
+    estadisticas = calcular_estadisticas_evaluaciones(evaluaciones_query.all())
+    
+    cursos, examenes = obtener_cursos_y_examenes_docente(current_user.id)
+    
+    return render_template(
+        'ver_resultados.html', 
+        evaluaciones=evaluaciones_paginadas, # Pasar los resultados de la página actual
+        pagination=pagination,              # Pasar el objeto de paginación
+        estadisticas=estadisticas, 
+        cursos=cursos,
+        examenes=examenes,
+        filtro_examen_id=examen_id,
+        filtro_curso_id=curso_id
+    )
 
 @app.route('/docente/ver_detalle_evaluacion/<int:evaluacion_id>')
 @login_required
@@ -971,6 +1360,28 @@ def ver_detalle_evaluacion(evaluacion_id):
     if evaluacion.entrega.pregunta.examen.horario not in current_user.horarios:
         flash('No tienes permiso para ver esta evaluación.', 'danger')
         return redirect(url_for('ver_resultados'))
+    
+    entrega = evaluacion.entrega
+    
+    rubrica_data = None
+    if entrega.pregunta.rubrica_evaluacion:
+        try:
+            rubrica_data = json.loads(entrega.pregunta.rubrica_evaluacion)
+        except json.JSONDecodeError:
+            rubrica_data = {"criterios": []}
+
+    resultados_llm_list = []
+    if evaluacion.resultados_criterios_llm:
+        for res_llm in evaluacion.resultados_criterios_llm:
+            resultados_llm_list.append({
+                "criterio_nombre": res_llm.criterio_nombre,
+                "puntaje_obtenido_llm": res_llm.puntaje_obtenido_llm,
+                "max_puntaje_criterio": res_llm.max_puntaje_criterio,
+                "feedback_criterio_llm": res_llm.feedback_criterio_llm,
+            })
+
+    # Necesitamos un formulario para el token CSRF para la edición
+    csrf_form = DummyForm()
     
     # Obtener todas las entregas de este alumno para esta pregunta
     entregas_alumno = Entrega.query.filter_by(
@@ -987,7 +1398,11 @@ def ver_detalle_evaluacion(evaluacion_id):
     return render_template(
         'ver_detalle_evaluacion.html', 
         evaluacion=evaluacion,
-        historial_evaluaciones=historial_evaluaciones
+        historial_evaluaciones=historial_evaluaciones,
+        # Pasamos los nuevos datos a la plantilla
+        rubrica_data_json=json.dumps(rubrica_data),
+        resultados_llm_json=json.dumps(resultados_llm_list),
+        csrf_form=csrf_form
     )
 
 @app.route('/docente/examen/<int:examen_id>/agregar_pregunta', methods=['GET', 'POST'])
@@ -1234,3 +1649,172 @@ def get_student_courses_and_exams(student_user):
 def page_not_found(e):
     return render_template('404.html'), 404
 
+# Configura una carpeta para las subidas
+IMAGE_UPLOAD_FOLDER = os.path.join('.', 'static/uploads/editor_images')
+if not os.path.exists(IMAGE_UPLOAD_FOLDER):
+    os.makedirs(IMAGE_UPLOAD_FOLDER)
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/upload_editor_image', methods=['POST'])
+@login_required # O la protección que uses
+def upload_editor_image():
+    if 'upload' not in request.files:
+        return jsonify(error={'message': 'No se encontró el archivo en la petición'}), 400
+    file = request.files['upload']
+    if file.filename == '':
+        return jsonify(error={'message': 'No se seleccionó ningún archivo'}), 400
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        # Para evitar colisiones de nombres, puedes añadir un timestamp o UUID
+        # timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        # unique_filename = f"{timestamp}_{filename}"
+        # filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
+        
+        # Por simplicidad ahora, solo el nombre seguro
+        filepath = os.path.join(IMAGE_UPLOAD_FOLDER, filename)
+        try:
+            file.save(filepath)
+            # La URL debe ser accesible desde el navegador
+            file_url = url_for('static', filename=f'uploads/editor_images/{filename}', _external=True)
+            # CKEditor 5 SimpleUploadAdapter espera un JSON con una clave "url" o "urls"
+            return jsonify(url=file_url) 
+            # O para múltiples tamaños (si tu adaptador lo soporta):
+            # return jsonify(urls={'default': file_url, '800': file_url, '1024': file_url})
+        except Exception as e:
+            current_app.logger.error(f"Error guardando archivo subido: {e}")
+            return jsonify(error={'message': f'Error guardando el archivo: {str(e)}'}), 500
+    else:
+        return jsonify(error={'message': 'Tipo de archivo no permitido'}), 400
+    
+def limpiar_html(html_content):
+    """Usa BeautifulSoup para extraer texto plano del HTML."""
+    if not html_content:
+        return ""
+    # BeautifulSoup es muy robusto para esto. Una alternativa simple es regex.
+    # return re.sub('<[^<]+?>', '', html_content)
+    soup = BeautifulSoup(html_content, "html.parser")
+    return soup.get_text()
+
+def crear_excel_evaluacion(evaluacion):
+    """
+    Crea un archivo Excel en memoria para una única evaluación.
+    """
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+        
+        # --- Hoja 1: Resumen de la Evaluación ---
+        resumen_data = {
+            "Campo": [
+                "Alumno", "Email", "Código", "Examen", "Pregunta (Resumen)", 
+                "Puntaje Funcional", "Feedback General (IA)", "Fecha Entrega", "Fecha Evaluación"
+            ],
+            "Valor": [
+                evaluacion.entrega.alumno.nombre,
+                evaluacion.entrega.alumno.email,
+                evaluacion.entrega.alumno.codigo,
+                evaluacion.entrega.pregunta.examen.titulo,
+                limpiar_html(evaluacion.entrega.pregunta.enunciado), # Limpiamos el HTML
+                f"{evaluacion.puntaje_obtenido} / {evaluacion.entrega.pregunta.puntaje_total}",
+                evaluacion.feedback_llm_general or "N/A", # Añadimos el feedback
+                evaluacion.entrega.fecha_entrega.strftime('%Y-%m-%d %H:%M'),
+                evaluacion.fecha_evaluacion.strftime('%Y-%m-%d %H:%M')
+            ]
+        }
+        df_resumen = pd.DataFrame(resumen_data)
+        df_resumen.to_excel(writer, sheet_name='Resumen', index=False, header=False)
+
+        workbook = writer.book
+        worksheet_resumen = writer.sheets['Resumen']
+        header_format = workbook.add_format({'bold': True, 'bg_color': '#F2F2F2', 'border': 1})
+        worksheet_resumen.set_column('A:A', 25, header_format) # Columna de Campos
+        worksheet_resumen.set_column('B:B', 80) # Columna de Valores
+        # Aplicar ajuste de texto a la columna de valores
+        wrap_format = workbook.add_format({'text_wrap': True, 'valign': 'top'})
+        worksheet_resumen.set_column('B:B', 80, wrap_format)
+        
+        # --- Hoja 2: Rúbrica de IA (si existe) ---
+        if evaluacion.resultados_criterios_llm.count() > 0:
+            rubrica_data = {
+                "Criterio": [r.criterio_nombre for r in evaluacion.resultados_criterios_llm],
+                "Puntaje Obtenido (IA)": [r.puntaje_obtenido_llm for r in evaluacion.resultados_criterios_llm],
+                "Puntaje Máximo": [r.max_puntaje_criterio for r in evaluacion.resultados_criterios_llm],
+                "Feedback de la IA": [r.feedback_criterio_llm for r in evaluacion.resultados_criterios_llm]
+            }
+            df_rubrica = pd.DataFrame(rubrica_data)
+            df_rubrica.to_excel(writer, sheet_name='Rubrica_IA', index=False)
+            
+            # --- Formatear la hoja de la rúbrica ---
+            workbook = writer.book
+            worksheet = writer.sheets['Rubrica_IA']
+            header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'top', 'fg_color': '#D7E4BC', 'border': 1})
+            text_wrap_format = workbook.add_format({'text_wrap': True, 'valign': 'top'})
+
+            for col_num, value in enumerate(df_rubrica.columns.values):
+                worksheet.write(0, col_num, value, header_format)
+            
+            worksheet.set_column('A:A', 25) # Ancho de columna Criterio
+            worksheet.set_column('B:C', 15) # Ancho de Puntajes
+            worksheet.set_column('D:D', 80, text_wrap_format) # Ancho y formato para Feedback
+        
+        # --- Hoja 3: Casos de Prueba ---
+        casos_data = {
+            "Descripción": [r.caso_de_prueba.descripcion for r in evaluacion.resultados],
+            "Estado": ["Correcto" if r.paso else "Incorrecto" for r in evaluacion.resultados],
+            "Puntos Obtenidos": [r.puntos_obtenidos for r in evaluacion.resultados],
+            "Salida Obtenida": [r.salida_obtenida for r in evaluacion.resultados]
+        }
+        df_casos = pd.DataFrame(casos_data)
+        df_casos.to_excel(writer, sheet_name='Casos_de_Prueba', index=False)
+
+    buffer.seek(0)
+    return buffer
+
+@app.route('/docente/examen/<int:examen_id>/descargar_evaluaciones')
+@login_required
+def descargar_evaluaciones(examen_id):
+    if current_user.rol != 'docente':
+        return "Acceso no autorizado", 403
+
+    examen = Examen.query.get_or_404(examen_id)
+    if examen.horario not in current_user.horarios:
+        return "No tienes permiso para acceder a este examen.", 403
+
+    # Obtener todas las últimas evaluaciones para este examen
+    evaluaciones = obtener_evaluaciones_por_examen(examen_id=examen.id)
+    
+    if not evaluaciones:
+        flash('No hay evaluaciones para descargar para este examen.', 'info')
+        return redirect(url_for('gestionar_examenes'))
+
+    # --- LÓGICA CORREGIDA PARA EL NOMBRE DE ARCHIVO ---
+    # 1. Crear un mapa del ID de la pregunta a su número ordinal (P1, P2, etc.)
+    preguntas_ordenadas = sorted(examen.preguntas, key=lambda p: p.id)
+    mapa_pregunta_a_num = {pregunta.id: idx + 1 for idx, pregunta in enumerate(preguntas_ordenadas)}
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for evaluacion in evaluaciones:
+            # 2. Obtener el número de pregunta correcto desde el mapa
+            num_pregunta = mapa_pregunta_a_num.get(evaluacion.entrega.pregunta_id, 'ID_Desconocido')
+            
+            excel_buffer = crear_excel_evaluacion(evaluacion)
+            
+            alumno_code = evaluacion.entrega.alumno.codigo or "SIN_CODIGO"
+            
+            # 3. Construir el nombre de archivo con el formato correcto "CODIGO_P<N>"
+            filename = f"{alumno_code}_P{num_pregunta}.xlsx"
+            
+            zip_file.writestr(filename, excel_buffer.read())
+
+    zip_buffer.seek(0)
+    
+    return send_file(
+        zip_buffer,
+        as_attachment=True,
+        download_name=f'evaluaciones_{examen.titulo.replace(" ", "_")}.zip',
+        mimetype='application/zip'
+    )

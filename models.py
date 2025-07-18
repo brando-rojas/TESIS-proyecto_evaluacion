@@ -21,6 +21,7 @@ class Usuario(UserMixin, db.Model):
     __tablename__ = 'usuario'
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
+    codigo = db.Column(db.String(20), unique=True, nullable=True, index=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     contrasena = db.Column(db.String(128), nullable=False)
     rol = db.Column(db.String(20), nullable=False)  # 'docente' o 'alumno'
@@ -224,11 +225,28 @@ class Evaluacion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     puntaje_obtenido = db.Column(db.Float, nullable=False)
     feedback = db.Column(db.Text, nullable=True)
+    feedback_llm_general = db.Column(db.Text, nullable=True, comment="Feedback cualitativo general del LLM")
     fecha_evaluacion = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     entrega_id = db.Column(db.Integer, db.ForeignKey('entrega.id'), nullable=False)
 
     # Relaciones
     resultados = db.relationship('ResultadoDeEvaluacion', backref='evaluacion', lazy=True)
+    resultados_criterios_llm = db.relationship('ResultadoCriterioLLM', backref='evaluacion', lazy='dynamic', cascade="all, delete-orphan")
+
+class ResultadoCriterioLLM(db.Model):
+    __tablename__ = 'resultado_criterio_llm'
+    id = db.Column(db.Integer, primary_key=True)
+    evaluacion_id = db.Column(db.Integer, db.ForeignKey('evaluacion.id', ondelete='CASCADE'), nullable=False)
+    criterio_nombre = db.Column(db.String(255), nullable=False, index=True) # Añadido index
+    puntaje_obtenido_llm = db.Column(db.Float, nullable=False)
+    max_puntaje_criterio = db.Column(db.Float, nullable=True) # Puntaje máximo para este criterio según la rúbrica
+    feedback_criterio_llm = db.Column(db.Text, nullable=True)
+
+    # La relación inversa 'evaluacion' ya está definida en Evaluacion.resultados_criterios_llm
+    # No necesitas un db.relationship aquí a menos que quieras una configuración específica para esta dirección.
+
+    def __repr__(self):
+        return f'<ResultadoCriterioLLM id={self.id} criterio="{self.criterio_nombre}" puntaje={self.puntaje_obtenido_llm}>'
 
 class ResultadoDeEvaluacion(db.Model):
     __tablename__ = 'resultado_de_evaluacion'
@@ -281,12 +299,15 @@ class AnalisisMetrica(db.Model):
 class AnalisisSimilitud(db.Model):
     __tablename__ = 'analisis_similitud'
     id = db.Column(db.Integer, primary_key=True)
-    entrega_id_1 = db.Column(db.Integer, db.ForeignKey('entrega.id'), nullable=False)
-    entrega_id_2 = db.Column(db.Integer, db.ForeignKey('entrega.id'), nullable=False)
-    porcentaje_similitud = db.Column(db.Float, nullable=False)
-
     entrega_id_1 = db.Column(db.Integer, db.ForeignKey('entrega.id', ondelete='CASCADE'), nullable=False)
     entrega_id_2 = db.Column(db.Integer, db.ForeignKey('entrega.id', ondelete='CASCADE'), nullable=False)
+    porcentaje_similitud = db.Column(db.Float, nullable=False)
+
+    # AÑADIDO: Índices para que las búsquedas sean más rápidas
+    __table_args__ = (
+        db.Index('ix_similitud_entrega1', 'entrega_id_1'),
+        db.Index('ix_similitud_entrega2', 'entrega_id_2'),
+    )
 
 class AnalisisResultado(db.Model):
     __tablename__ = 'analisis_resultado'

@@ -23,7 +23,7 @@
             <tr>
                 <td>{{ entrega.id }}</td>
                 <td>{{ entrega.pregunta.examen.titulo }}</td>
-                <td>{{ entrega.pregunta.enunciado }}</td>
+                <td>{{ entrega.pregunta.enunciado | striptags | truncate(40, True, '...') }}</td>
                 <td>{{ entrega.fecha_entrega.strftime('%Y-%m-%d %H:%M') }}</td>
                 <td>
                     {% if entrega.evaluacion %}
